@@ -1,0 +1,4 @@
+name = "SPPL"
+uuid = "d4869578-49cb-4439-a9cc-e16ca03432c4"
+authors = ["femtomc <mccoybecker@gmail.com>"]
+version = "0.1.0"
