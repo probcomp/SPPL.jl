@@ -35,6 +35,8 @@ sppl_compiler = pyimport("sppl.compilers.sppl_to_python")
 compiler = sppl_compiler.SPPL_Compiler
 
 # Commands.
+Id = ast_compiler.Id
+IdArray = ast_compiler.IdArray
 Skip = ast_compiler.Skip
 Sample = ast_compiler.Sample
 Transform = ast_compiler.Transform
@@ -45,30 +47,52 @@ Switch = ast_compiler.Switch
 Sequence = ast_compiler.Sequence
 
 # Distributions.
-Atomic = dists.atomic
-Choice = dists.NominalDistribution
-Bernoulli = dists.bernoulli
+Atomic(loc) = dists.atomic(loc=loc)
+Choice(d) = dists.NominalDistribution(Dict(d))
+Uniform(loc, scale) = dists.uniform(loc=loc, scale=scale)
+Bernoulli(p) = dists.bernoulli(p=p)
 
 function _sppl(expr::Expr)
+    variable_declarations = Dict()
     commands = Any[]
     @assert expr.head == :block
     for ex in expr.args
         new = MacroTools.postwalk(ex) do e
             if @capture(e, v_ ~ d_)
-                Expr(:call, GlobalRef(SPPL, :Sample), QuoteNode(v), d)
+                !(v in keys(variable_declarations)) && begin
+                    variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v)))
+                end
+                e = Expr(:call, GlobalRef(SPPL, :Sample), v, d)
+            
             elseif @capture(e, v_ == d_)
-                Expr(:call, GlobalRef(SPPL, :Cond), QuoteNode(v), d)
+                
+                # Convert to set.
+                str = "{$d}"
+                s = py"set([$str])"
+                
+                quote $v << $s end
+
             elseif @capture(e, if cond_ body1_ end)
                 Expr(:call, GlobalRef(SPPL, :IfElse), cond, body1)
-            elseif @capture(e, if cond_ body1_ else body2_ end)
-                Expr(:call, GlobalRef(SPPL, :IfElse), cond, body1, cond, body2)
+
+            elseif @capture(e, if cond_ body1__ else body2__ end)
+                Expr(:call, GlobalRef(SPPL, :IfElse), cond, 
+                     length(body1) == 1 ? body1[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body1...), 
+                     true, 
+                     length(body2) == 1 ? body2[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body2...))
+
             else
                 e
+
             end
         end
         push!(commands, new)
     end
-    MacroTools.postwalk(rmlines ∘ unblock, Expr(:call, :Sequence, Expr(:vect, commands...)))
+
+    emit = Expr(:block, values(variable_declarations)...,
+                Expr(:(=), :command, Expr(:call, :Sequence, commands...)),
+                quote model = command.interpret() end)
+    MacroTools.postwalk(rmlines ∘ unblock, emit)
 end
 
 macro sppl(expr)
@@ -78,10 +102,9 @@ macro sppl(expr)
 end
 
 macro sppl_str(str)
-    nmspace = compiler(str).execute_module()
-    nmspace.model
+    compiler(str).execute_module().model
 end
 
 export @sppl, @sppl_str
 
-end # module
+        end # module

@@ -3,6 +3,7 @@ module IndianGPA
 include("../src/SPPL.jl")
 using .SPPL
 
+test_string_macro = () -> begin
 spn = sppl"""
 Nationality   ~= choice({'India': 0.5, 'USA': 0.5})
 if (Nationality == 'India'):
@@ -19,19 +20,40 @@ else:
         GPA ~= uniform(loc=0, scale=4)
 """
 println(spn)
+end
 
-spn = @sppl begin
-    nationality ~ SPPL.Choice([:India => 0.5, :USA => 0.5])
-    if nationality == :India
+test_native_macro_1 = () -> begin
+    spn = @sppl begin
+        nationality ~ SPPL.Choice([:India => 0.5, :USA => 0.5])
         perfect ~ SPPL.Bernoulli(0.1)
-        if perfect == 1
-            gpa ~ SPPL.Atomic(4)
+        gpa ~ SPPL.Atomic(4)
+    end
+    println(spn)
+end
+
+test_native_macro_2 = () -> begin
+    spn = @sppl begin
+        nationality ~ SPPL.Choice([:India => 0.5, :USA => 0.5])
+        if nationality == :India
+            perfect ~ SPPL.Bernoulli(0.1)
+            if perfect == 1
+                gpa ~ SPPL.Atomic(10)
+            else
+                gpa ~ SPPL.Uniform(0, 10)
+            end
         else
-            gpa ~ SPPL.Uniform(0, 4)
+            perfect ~ SPPL.Bernoulli(0.15)
+            if perfect == 1
+                gpa ~ SPPL.Atomic(4)
+            else
+                gpa ~ SPPL.Uniform(0, 4)
+            end
         end
     end
 end
 
-println(spn.interpret())
+test_string_macro()
+test_native_macro_1()
+#test_native_macro_2()
 
 end # module
