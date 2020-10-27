@@ -53,12 +53,7 @@ function parse_function(expr::Expr)
                 e = Expr(:call, GlobalRef(SPPL, :Sample), v, d)
 
             elseif @capture(e, v_ == d_)
-
-                # Convert to set.
-                str = "{$d}"
-                s = py"set([$str])"
-
-                quote $v << $s end
+                Expr(:call, :(<<), v, Expr(:call, GlobalRef(SPPL, :set), d))
 
             elseif @capture(e, if cond_ body1_ end)
                 Expr(:call, GlobalRef(SPPL, :IfElse), cond, body1)
