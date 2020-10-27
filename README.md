@@ -64,6 +64,7 @@ which expands to produce a generator:
       perfect = Main.IndianGPA.SPPL.Id(:perfect)
       command = Main.IndianGPA.SPPL.Sequence(Main.IndianGPA.SPPL.Sample(nationality, SPPL.Choice([:India => x, :USA => 0.5])), Main.IndianGPA.SPPL.Sample(perfect, SPPL.Bernoulli(0.1)), Main.IndianGPA.SPPL.Sample(gpa, SPPL.Atomic(4)))
       model = command.interpret()
-      model
+      namespace = (nationality = Main.IndianGPA.SPPL.Id(:nationality), perfect = Main.IndianGPA.SPPL.Id(:perfect), gpa = Main.IndianGPA.SPPL.Id(:gpa), model = model)
+      namespace
   end)
 ```
