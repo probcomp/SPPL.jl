@@ -89,7 +89,7 @@ test_3()
 try
     test_4()
 catch PyError
-    println("Caught error. All good!")
+    println("Caught error. This is expected.")
 end
 
 end # module
