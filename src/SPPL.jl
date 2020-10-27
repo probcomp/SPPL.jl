@@ -28,6 +28,10 @@ else
     end
 end
 
+# Easy conversion to Python sets.
+set(s) = py"{$s}"
+export set
+
 sppl = pyimport("sppl")
 dists = pyimport("sppl.distributions")
 ast_compiler = pyimport("sppl.compilers.ast_to_spn")
@@ -47,13 +51,7 @@ Switch = ast_compiler.Switch
 Sequence = ast_compiler.Sequence
 
 # Distributions.
-Atomic(loc) = dists.atomic(loc=loc)
-Choice(d) = dists.NominalDistribution(Dict(d))
-Uniform(loc, scale) = dists.uniform(loc=loc, scale=scale)
-Bernoulli(p) = dists.bernoulli(p=p)
-
-set(s) = py"{$s}"
-export set
+include("distributions.jl")
 
 include("dsl.jl")
 export @sppl, @sppl_str
