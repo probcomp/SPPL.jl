@@ -89,7 +89,7 @@ function parse_block(expr::Expr)
     end
 
     emit = Expr(:block, values(variable_declarations)...,
-                Expr(:(=), :command, Expr(:call, :Sequence, commands...)),
+                Expr(:(=), :command, Expr(:call, GlobalRef(SPPL, :Sequence), commands...)),
                 quote model = command.interpret() end)
     MacroTools.postwalk(rmlines ∘ unblock, emit)
 end
@@ -98,7 +98,7 @@ function parse_function(expr::Expr)
     commands = Any[]
     variable_declarations = Dict()
     @capture(expr, function fn_(args__) body__ end)
-    for ex in expr.args
+    for ex in body
         new = MacroTools.postwalk(ex) do e
             if @capture(e, v_ ~ d_)
                 !(v in keys(variable_declarations)) && begin
@@ -125,14 +125,13 @@ function parse_function(expr::Expr)
 
             else
                 e
-
             end
         end
         push!(commands, new)
     end
 
     new_body = Expr(:block, values(variable_declarations)...,
-                    Expr(:(=), :command, Expr(:call, :Sequence, commands...)),
+                    Expr(:(=), :command, Expr(:call, GlobalRef(SPPL, :Sequence), commands...)),
                     quote model = command.interpret() end,
                     quote model end)
 
@@ -152,7 +151,7 @@ end
 macro sppl(expr)
     new = _sppl(expr)
     display(new)
-    new
+    esc(new)
 end
 
 macro sppl_str(str)

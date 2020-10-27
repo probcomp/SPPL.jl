@@ -61,5 +61,7 @@ end
 test_string_macro()
 test_native_macro_1()
 #test_native_macro_2()
+md = foo(0.5)
+println(md)
 
 end # module
