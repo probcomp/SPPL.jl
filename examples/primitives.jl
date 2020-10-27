@@ -71,6 +71,9 @@ test_4 = () -> begin
             end
         else
             perfect ~ SPPL.Bernoulli(0.15)
+            
+            # Commenting out the below should cause a MixtureError.
+            
             #if perfect == 1
             #    gpa ~ SPPL.Atomic(4)
             #else
