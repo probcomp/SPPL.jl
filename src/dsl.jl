@@ -1,24 +1,18 @@
 function parse_block(expr::Expr)
     commands = Any[]
     variable_declarations = Dict()
+    namespace = Any[]
     for ex in expr.args
         new = MacroTools.postwalk(ex) do e
             if @capture(e, v_ ~ d_)
                 !(v in keys(variable_declarations)) && begin
                     variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v)))
+                    push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v))))
                 end
                 e = Expr(:call, GlobalRef(SPPL, :Sample), v, d)
 
             elseif @capture(e, v_ == d_)
-
-                # Convert to set.
-                str = "{$d}"
-                s = py"set([$str])"
-
-                quote $v << $s end
-
-            elseif @capture(e, if cond_ body1_ end)
-                Expr(:call, GlobalRef(SPPL, :IfElse), cond, body1)
+                Expr(:call, :(<<), v, Expr(:call, GlobalRef(SPPL, :set), d))
 
             elseif @capture(e, if cond_ body1__ else body2__ end)
                 Expr(:call, GlobalRef(SPPL, :IfElse), cond, 
@@ -35,9 +29,13 @@ function parse_block(expr::Expr)
     end
 
     emit = Expr(:block, values(variable_declarations)...,
-                Expr(:(=), :command, Expr(:call, GlobalRef(SPPL, :Sequence), commands...)),
-                quote model = command.interpret() end)
-    MacroTools.postwalk(rmlines ∘ unblock, emit)
+                    Expr(:(=), :command, Expr(:call, GlobalRef(SPPL, :Sequence), commands...)),
+                    quote model = command.interpret() end,
+                    Expr(:(=), :namespace, Expr(:tuple, namespace..., Expr(:(=), :model, :model))),
+                    quote namespace end)
+
+    emit = MacroTools.postwalk(rmlines ∘ unblock, emit)
+    emit
 end
 
 function parse_function(expr::Expr)
@@ -103,5 +101,5 @@ macro sppl(expr)
 end
 
 macro sppl_str(str)
-    compiler(str).execute_module().model
+    compiler(str).execute_module()
 end

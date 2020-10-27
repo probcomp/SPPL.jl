@@ -50,6 +50,8 @@ For = ast_compiler.For
 Switch = ast_compiler.Switch
 Sequence = ast_compiler.Sequence
 
+export Id, IdArray, Skip, Sample, Transform, Cond, IfElse, For, Switch, Sequence
+
 # Distributions.
 include("distributions.jl")
 

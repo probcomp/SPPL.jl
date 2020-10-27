@@ -19,7 +19,6 @@ else:
     else:               
         GPA ~= uniform(loc=0, scale=4)
 """
-println(spn)
 end
 
 test_native_macro_1 = () -> begin
@@ -43,13 +42,14 @@ test_native_macro_2 = () -> begin
             end
         else
             perfect ~ SPPL.Bernoulli(0.15)
-            if perfect == 1
-                gpa ~ SPPL.Atomic(4)
-            else
-                gpa ~ SPPL.Uniform(0, 4)
-            end
+            #if perfect == 1
+            #    gpa ~ SPPL.Atomic(4)
+            #else
+            #    gpa ~ SPPL.Uniform(0, 4)
+            #end
         end
     end
+    println(spn)
 end
 
 @sppl function foo(x::Float64)
@@ -59,8 +59,8 @@ end
 end
 
 test_string_macro()
-test_native_macro_1()
-#test_native_macro_2()
+#test_native_macro_1()
+test_native_macro_2()
 
 # A little fun.
 n = foo(0.5)
@@ -68,7 +68,6 @@ n = foo(0.5)
 event = (n.nationality << set(:USA)) | ((8 < n.gpa) < 10)
 conditioned = n.model.condition(event)
 samples = conditioned.sample(1000)
-display(samples)
 println(n.model.prob(n.perfect << set(1)))
 
 end # module
