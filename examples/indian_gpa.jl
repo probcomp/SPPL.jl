@@ -52,6 +52,12 @@ test_native_macro_2 = () -> begin
     end
 end
 
+@sppl function foo(x::Float64)
+    nationality ~ SPPL.Choice([:India => x, :USA => 0.5])
+    perfect ~ SPPL.Bernoulli(0.1)
+    gpa ~ SPPL.Atomic(4)
+end
+
 test_string_macro()
 test_native_macro_1()
 #test_native_macro_2()

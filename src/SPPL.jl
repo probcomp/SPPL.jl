@@ -52,10 +52,9 @@ Choice(d) = dists.NominalDistribution(Dict(d))
 Uniform(loc, scale) = dists.uniform(loc=loc, scale=scale)
 Bernoulli(p) = dists.bernoulli(p=p)
 
-function _sppl(expr::Expr)
-    variable_declarations = Dict()
+function parse_block(expr::Expr)
     commands = Any[]
-    @assert expr.head == :block
+    variable_declarations = Dict()
     for ex in expr.args
         new = MacroTools.postwalk(ex) do e
             if @capture(e, v_ ~ d_)
@@ -63,13 +62,13 @@ function _sppl(expr::Expr)
                     variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v)))
                 end
                 e = Expr(:call, GlobalRef(SPPL, :Sample), v, d)
-            
+
             elseif @capture(e, v_ == d_)
-                
+
                 # Convert to set.
                 str = "{$d}"
                 s = py"set([$str])"
-                
+
                 quote $v << $s end
 
             elseif @capture(e, if cond_ body1_ end)
@@ -95,6 +94,61 @@ function _sppl(expr::Expr)
     MacroTools.postwalk(rmlines ∘ unblock, emit)
 end
 
+function parse_function(expr::Expr)
+    commands = Any[]
+    variable_declarations = Dict()
+    @capture(expr, function fn_(args__) body__ end)
+    for ex in expr.args
+        new = MacroTools.postwalk(ex) do e
+            if @capture(e, v_ ~ d_)
+                !(v in keys(variable_declarations)) && begin
+                    variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v)))
+                end
+                e = Expr(:call, GlobalRef(SPPL, :Sample), v, d)
+
+            elseif @capture(e, v_ == d_)
+
+                # Convert to set.
+                str = "{$d}"
+                s = py"set([$str])"
+
+                quote $v << $s end
+
+            elseif @capture(e, if cond_ body1_ end)
+                Expr(:call, GlobalRef(SPPL, :IfElse), cond, body1)
+
+            elseif @capture(e, if cond_ body1__ else body2__ end)
+                Expr(:call, GlobalRef(SPPL, :IfElse), cond, 
+                     length(body1) == 1 ? body1[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body1...), 
+                     true, 
+                     length(body2) == 1 ? body2[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body2...))
+
+            else
+                e
+
+            end
+        end
+        push!(commands, new)
+    end
+
+    new_body = Expr(:block, values(variable_declarations)...,
+                    Expr(:(=), :command, Expr(:call, :Sequence, commands...)),
+                    quote model = command.interpret() end,
+                    quote model end)
+
+    emit = quote function $fn($(args...))
+            $new_body
+        end
+    end
+    MacroTools.postwalk(rmlines ∘ unblock, emit)
+end
+
+function _sppl(expr::Expr)
+    expr.head == :block && return parse_block(expr)
+    expr.head == :function && return parse_function(expr)
+    error("ParseError (@sppl): requires a block or a long-form function definition.")
+end
+
 macro sppl(expr)
     new = _sppl(expr)
     display(new)
@@ -107,4 +161,4 @@ end
 
 export @sppl, @sppl_str
 
-        end # module
+end # module
