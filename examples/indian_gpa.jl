@@ -61,7 +61,14 @@ end
 test_string_macro()
 test_native_macro_1()
 #test_native_macro_2()
-md = foo(0.5)
-println(md)
+
+# A little fun.
+n = foo(0.5)
+
+event = (n.nationality << set(:USA)) | ((8 < n.gpa) < 10)
+conditioned = n.model.condition(event)
+samples = conditioned.sample(1000)
+display(samples)
+println(n.model.prob(n.perfect << set(1)))
 
 end # module
