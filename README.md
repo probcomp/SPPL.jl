@@ -41,3 +41,30 @@ println(spn)
 ```
 PyObject <sppl.spn.ProductSPN object at 0x7f306381f820>
 ```
+
+Of course, you can use native abstractions:
+
+```julia
+@sppl function foo(x::Float64)
+    nationality ~ SPPL.Choice([:India => x, :USA => 0.5])
+    perfect ~ SPPL.Bernoulli(0.1)
+    gpa ~ SPPL.Atomic(4)
+end
+```
+
+which expands to produce a generator:
+
+```
+:(function foo(x::Float64)
+      gpa = Main.IndianGPA.SPPL.Id(:gpa)
+      nationality = Main.IndianGPA.SPPL.Id(:nationality)
+      perfect = Main.IndianGPA.SPPL.Id(:perfect)
+      command = Sequence(foo(x::Float64), begin
+                  Main.IndianGPA.SPPL.Sample(nationality, SPPL.Choice([:India => x, :USA => 0.5]))
+                  Main.IndianGPA.SPPL.Sample(perfect, SPPL.Bernoulli(0.1))
+                  Main.IndianGPA.SPPL.Sample(gpa, SPPL.Atomic(4))
+              end)
+      model = command.interpret()
+      model
+  end)
+```
