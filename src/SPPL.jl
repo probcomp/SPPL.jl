@@ -32,6 +32,7 @@ end
 set(s) = py"{$s}"
 export set
 
+fractions = pyimport("fractions")
 sppl = pyimport("sppl")
 dists = pyimport("sppl.distributions")
 ast_compiler = pyimport("sppl.compilers.ast_to_spn")
@@ -65,8 +66,9 @@ export dnf_to_disjoint_union
 
 # Utils.
 binspace = sym_util.binspace
+Fraction = fractions.Fraction
 
-export binspace
+export binspace, Fraction
 
 # Extra.
 Sqrt = transforms.Sqrt

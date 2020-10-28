@@ -1,15 +1,26 @@
 function parse_block(expr::Expr)
     commands = Any[]
+    array_declarations = Any[]
     variable_declarations = Dict()
     namespace = Any[]
     for ex in expr.args
         new = MacroTools.postwalk(ex) do e
-            if @capture(e, v_ ~ d_)
+            if @capture(e, v_[a_] ~ d_)
+                !(v in keys(variable_declarations)) && error("ParseError (parse_block): IdArray must be declared before use.")
+                e = Expr(:call, GlobalRef(SPPL, :Sample), Expr(:call, :getindex, v, a), d)
+            elseif @capture(e, v_ ~ d_)
                 !(v in keys(variable_declarations)) && begin
                     variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v)))
                     push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v))))
                 end
                 e = Expr(:call, GlobalRef(SPPL, :Sample), v, d)
+
+            elseif @capture(e, v_ = array(n_))
+                !(v in keys(variable_declarations)) && begin
+                    variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :IdArray), QuoteNode(v), n))
+                    push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :IdArray), QuoteNode(v), 3)))
+                end
+                e = Expr(:noop)
 
             elseif @capture(e, v_ -> d_)
                 !(v in keys(variable_declarations)) && begin
@@ -26,6 +37,9 @@ function parse_block(expr::Expr)
                      length(body1) == 1 ? body1[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body1...), 
                      true, 
                      length(body2) == 1 ? body2[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body2...))
+            
+            elseif @capture(e, for ind_ in stx_ : endx_ body_ end)
+                Expr(:call, GlobalRef(SPPL, :For), stx, endx, Expr(:->, ind, body)) 
 
             elseif @capture(e, cond_ ? body1__ : body2__)
                 Expr(:call, GlobalRef(SPPL, :IfElse), cond, 
@@ -39,6 +53,11 @@ function parse_block(expr::Expr)
             end
         end
         push!(commands, new)
+    end
+   
+    # Filter commands to remove :noop expressions caused by array declarations.
+    commands = filter(commands) do expr
+        expr isa Expr && expr.head != :noop
     end
 
     emit = Expr(:block, values(variable_declarations)...,
@@ -110,9 +129,24 @@ function _sppl(expr::Expr)
     error("ParseError (@sppl): requires a block or a long-form function definition.")
 end
 
+# ------------ Macros ------------ #
+
 macro sppl(expr)
     new = _sppl(expr)
     esc(new)
+end
+
+macro sppl(debug, expr)
+    new = _sppl(expr)
+    debug == :debug && println(new)
+    esc(new)
+end
+
+# String macro.
+macro sppl_str(debug_flag, str)
+    comp = compiler(str)
+    debug_flag == :debug && println(comp.render_module())
+    comp.execute_module()
 end
 
 macro sppl_str(str)
