@@ -42,18 +42,10 @@ test_3 = () -> begin
         nationality ~ SPPL.Choice([:India => 0.5, :USA => 0.5])
         if nationality == :India
             perfect ~ SPPL.Bernoulli(0.1)
-            if perfect == 1
-                gpa ~ SPPL.Atomic(10)
-            else
-                gpa ~ SPPL.Uniform(0, 10)
-            end
+            perfect == 1 ? gpa ~ SPPL.Atomic(10) : gpa ~ SPPL.Uniform(0, 10)
         else
             perfect ~ SPPL.Bernoulli(0.15)
-            if perfect == 1
-                gpa ~ SPPL.Atomic(4)
-            else
-                gpa ~ SPPL.Uniform(0, 4)
-            end
+            perfect == 1 ? gpa ~ SPPL.Atomic(4) : gpa ~ SPPL.Uniform(0, 4)
         end
     end
     println(namespace.model)
@@ -71,9 +63,9 @@ test_4 = () -> begin
             end
         else
             perfect ~ SPPL.Bernoulli(0.15)
-            
+
             # Commenting out the below should cause a MixtureError.
-            
+
             #if perfect == 1
             #    gpa ~ SPPL.Atomic(4)
             #else

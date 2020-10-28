@@ -11,10 +11,23 @@ function parse_block(expr::Expr)
                 end
                 e = Expr(:call, GlobalRef(SPPL, :Sample), v, d)
 
+            elseif @capture(e, v_ -> d_)
+                !(v in keys(variable_declarations)) && begin
+                    variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v)))
+                    push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v))))
+                end
+                e = Expr(:call, GlobalRef(SPPL, :Transform), v, d)
+
             elseif @capture(e, v_ == d_)
                 Expr(:call, :(<<), v, Expr(:call, GlobalRef(SPPL, :set), d))
 
             elseif @capture(e, if cond_ body1__ else body2__ end)
+                Expr(:call, GlobalRef(SPPL, :IfElse), cond, 
+                     length(body1) == 1 ? body1[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body1...), 
+                     true, 
+                     length(body2) == 1 ? body2[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body2...))
+
+            elseif @capture(e, cond_ ? body1__ : body2__)
                 Expr(:call, GlobalRef(SPPL, :IfElse), cond, 
                      length(body1) == 1 ? body1[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body1...), 
                      true, 
@@ -29,10 +42,10 @@ function parse_block(expr::Expr)
     end
 
     emit = Expr(:block, values(variable_declarations)...,
-                    Expr(:(=), :command, Expr(:call, GlobalRef(SPPL, :Sequence), commands...)),
-                    quote model = command.interpret() end,
-                    Expr(:(=), :namespace, Expr(:tuple, namespace..., Expr(:(=), :model, :model))),
-                    quote namespace end)
+                Expr(:(=), :command, Expr(:call, GlobalRef(SPPL, :Sequence), commands...)),
+                quote model = command.interpret() end,
+                Expr(:(=), :namespace, Expr(:tuple, namespace..., Expr(:(=), :model, :model))),
+                quote namespace end)
 
     emit = MacroTools.postwalk(rmlines ∘ unblock, emit)
     emit
@@ -51,6 +64,13 @@ function parse_function(expr::Expr)
                     push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v))))
                 end
                 e = Expr(:call, GlobalRef(SPPL, :Sample), v, d)
+
+            elseif @capture(e, v_ -> d_)
+                !(v in keys(variable_declarations)) && begin
+                    variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v)))
+                    push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :Id), QuoteNode(v))))
+                end
+                e = Expr(:call, GlobalRef(SPPL, :Transform), v, d)
 
             elseif @capture(e, v_ == d_)
                 Expr(:call, :(<<), v, Expr(:call, GlobalRef(SPPL, :set), d))
