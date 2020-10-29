@@ -82,4 +82,4 @@ There are a few special pieces of syntax which the user should keep in mind. Som
 4. `==` desugars to `<<` on the Python side (this creates an `event` - a condition). 
 5. The `for` expression is allowed - but you are restricted to only supply `UnitRange{Int64}` instances for the parsing/semantics to work properly.
 
-Examples of each of these points can be found in the `examples` directory. These `examples` come directly from the [sppl Jupyter notebooks](https://github.com/probcomp/sppl/tree/master/examples).
+Examples of each of these points can be found in the [`examples` directory](https://github.com/femtomc/SPPL.jl/tree/master/examples). These `examples` come directly from the [sppl Jupyter notebooks](https://github.com/probcomp/sppl/tree/master/examples). If you'd like to help port these over, just setup a PR!
