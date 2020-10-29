@@ -77,7 +77,7 @@ function parse_block(expr::Expr)
     emit
 end
 
-function parse_longform_function(expr::Expr)
+function parse_longdef_function(expr::Expr)
     commands = Any[]
     variable_declarations = Dict()
     namespace = Any[]
@@ -232,11 +232,11 @@ end
 
 function _sppl(expr::Expr)
     expr.head == :block && return parse_block(expr)
-    expr.head == :function && return parse_longform_function(expr)
+    expr.head == :function && return parse_longdef_function(expr)
     expr.head == :-> && return parse_anonymous_function(expr)
     if expr.head == :(=)
         longdef = MacroTools.longdef(expr)
-        longdef.head == :function && return parse_longform_function(longdef)
+        longdef.head == :function && return parse_longdef_function(longdef)
     end
     error("ParseError (@sppl): requires a block, a longdef function definition, a shortdef function definition, or an anonymous function definition.")
 end
