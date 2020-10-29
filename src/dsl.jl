@@ -61,11 +61,12 @@ function parse_block(expr::Expr)
         push!(commands, new)
     end
 
-    # Filter commands to remove :noop expressions caused by array declarations.
+    # Filter commands to remove :noop expressions caused by array declarations exprs (see this part of the conditional matching above).
     commands = filter(commands) do expr
         expr isa Expr && expr.head != :noop
     end
 
+    # Organize body into a Sequence - return a namespace.
     emit = Expr(:block, values(variable_declarations)...,
                 Expr(:(=), :command, Expr(:call, GlobalRef(SPPL, :Sequence), commands...)),
                 quote model = command.interpret() end,
@@ -233,7 +234,11 @@ function _sppl(expr::Expr)
     expr.head == :block && return parse_block(expr)
     expr.head == :function && return parse_longform_function(expr)
     expr.head == :-> && return parse_anonymous_function(expr)
-    error("ParseError (@sppl): requires a block or a long-form function definition.")
+    if expr.head == :(=)
+        longdef = MacroTools.longdef(expr)
+        longdef.head == :function && return parse_longform_function(longdef)
+    end
+    error("ParseError (@sppl): requires a block, a longdef function definition, a shortdef function definition, or an anonymous function definition.")
 end
 
 # ------------ Macros ------------ #
