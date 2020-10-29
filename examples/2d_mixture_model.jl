@@ -12,6 +12,6 @@ e0 = ((-4 < n.X) < 4) & ((1 < n.Y^2) < 4)
 e1 = ((-1 < n.X) < 1) & ((-1.5 < n.Y) < 6)
 modelc = n.model.condition(e0 | e1)
 e = dnf_to_disjoint_union(e0 | e1)
-print([n.model.prob(x) for x in e.subexprs])
+println([n.model.prob(x) for x in e.subexprs])
 
 end # module
