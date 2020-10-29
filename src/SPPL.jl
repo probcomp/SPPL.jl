@@ -67,16 +67,18 @@ export dnf_to_disjoint_union
 # Utils.
 binspace = sym_util.binspace
 Fraction = fractions.Fraction
-
-export binspace, Fraction
-
-# Extra.
 Sqrt = transforms.Sqrt
 
+export binspace, Fraction
 export Sqrt
+
 
 # Distributions.
 include("distributions.jl")
+
+# Model accessor utilities.
+include("models.jl")
+export condition, probability, mutual_information
 
 include("dsl.jl")
 export @sppl, @sppl_str

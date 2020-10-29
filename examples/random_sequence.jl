@@ -21,17 +21,17 @@ end
 random_sequence = ns.model
 
 # Observe X[2] > 0.
-random_sequence_given_X1 = model.condition(ns.X[2] > 0)
-println(random_sequence.prob(ns.X[1]>0))
-println(random_sequence_given_X1.prob(ns.X[1]>0))
+random_sequence_given_X1 = condition(model, ns.X[2] > 0)
+probability(random_sequence, ns.X[1] > 0) |> println
+probability(random_sequence_given_X1, ns.X[1] > 0) |> println
 
 # Observe x[3] > 0.
 random_sequence_given_X2 = random_sequence.condition(ns.X[3] > 0)
-println(random_sequence.prob(ns.X[1]>0))
-println(random_sequence_given_X2.prob(ns.X[1]>0))
+probability(random_sequence, ns.X[1] > 0) |> println
+probability(random_sequence_given_X2, ns.X[1] > 0) |> println
 
 # Compute mutual information.
-println(random_sequence.mutual_information(ns.X[1]>0, ns.X[2]>0))
-println(random_sequence.mutual_information(ns.X[1]>0, ns.X[3]>0))
+mutual_information(random_sequence, ns.X[1]>0, ns.X[2]>0) |> println
+mutual_information(random_sequence, ns.X[1]>0, ns.X[3]>0) |> println
 
 end # module
