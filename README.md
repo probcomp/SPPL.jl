@@ -5,6 +5,8 @@
 
 A small DSL for programming [`sppl`](https://github.com/probcomp/sppl) across [PyCall.jl](https://github.com/JuliaPy/PyCall.jl).
 
+## Example usage
+
 Allows the usage of direct string macros:
 
 ```julia
@@ -68,3 +70,16 @@ which expands to produce a generator:
       namespace
   end)
 ```
+
+## Syntax
+
+There are a few special pieces of syntax which the user should keep in mind. Some of these points make the macro parsing unambiguous, others are more for convenience.
+
+0. `Sample` statements are expressed using just `~`.
+1. `Transform` expressions (a polynomial for example, expressed in Python as `X[1] ~ 8 * W[2]**2 + 5`) are specified using the "special" operator `.>`.
+2. The Julia ternary expression `foo ? b1 : b2` is allowed - this desugars into `IfElse`.
+3. Array declarations are performed using the library-provided `array` function interface. Array declarations must be made before indexing/use - or else macro parsing will return an error.
+4. `==` desugars to `<<` on the Python side (this creates an `event` - a condition). 
+5. The `for` expression is allowed - but you are restricted to only supply `UnitRange{Int64}` instances for the parsing/semantics to work properly.
+
+Examples of each of these points can be found in the `examples` directory. These `examples` come directly from the [sppl Jupyter notebooks](https://github.com/probcomp/sppl/tree/master/examples).
