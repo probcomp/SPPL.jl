@@ -1,9 +1,9 @@
 module SPPL
 
-using PyCall
 using Conda
 using MacroTools
 using MacroTools: @capture, rmlines, unblock
+using PyCall
 
 # Install ProbLog.
 if PyCall.conda
@@ -28,50 +28,77 @@ else
     end
 end
 
-# Easy conversion to Python sets.
-set(s) = py"{$s}"
-export set
+# ------------ Precompile compatibility ------------ #
 
-fractions = pyimport("fractions")
-sppl = pyimport("sppl")
-dists = pyimport("sppl.distributions")
-ast_compiler = pyimport("sppl.compilers.ast_to_spn")
-sppl_compiler = pyimport("sppl.compilers.sppl_to_python")
-transforms = pyimport("sppl.transforms")
-sym_util = pyimport("sppl.sym_util")
-dnf = pyimport("sppl.dnf")
+const fractions = PyNULL()
+const sppl = PyNULL()
+const dists = PyNULL()
+const ast_compiler = PyNULL()
+const sppl_compiler = PyNULL()
+const transforms = PyNULL()
+const sym_util = PyNULL()
+const dnf = PyNULL()
+const compiler = PyNULL()
+const Id = PyNULL()
+const IdArray = PyNULL()
+const Skip = PyNULL()
+const Sample = PyNULL()
+const Transform = PyNULL()
+const Cond = PyNULL()
+const IfElse = PyNULL()
+const For = PyNULL()
+const Switch = PyNULL()
+const Sequence = PyNULL()
+const dnf_to_disjoint_union = PyNULL()
+const binspace = PyNULL()
+const Fraction = PyNULL()
+const Sqrt = PyNULL()
 
-compiler = sppl_compiler.SPPL_Compiler
+function __init__()
 
-# Commands.
-Id = ast_compiler.Id
-IdArray = ast_compiler.IdArray
-Skip = ast_compiler.Skip
-Sample = ast_compiler.Sample
-Transform = ast_compiler.Transform
-Cond = ast_compiler.Condition
-IfElse = ast_compiler.IfElse
-For = ast_compiler.For
-Switch = ast_compiler.Switch
-Sequence = ast_compiler.Sequence
+    # ------------ Imports ------------ #
 
+    copy!(fractions, pyimport("fractions"))
+    copy!(sppl, pyimport("sppl"))
+    copy!(dists, pyimport("sppl.distributions"))
+    copy!(ast_compiler, pyimport("sppl.compilers.ast_to_spn"))
+    copy!(sppl_compiler, pyimport("sppl.compilers.sppl_to_python"))
+    copy!(transforms, pyimport("sppl.transforms"))
+    copy!(sym_util, pyimport("sppl.sym_util"))
+    copy!(dnf, pyimport("sppl.dnf"))
+    copy!(compiler, sppl_compiler.SPPL_Compiler)
+    
+    # ------------ Commands ------------ #
+
+    copy!(Id, ast_compiler.Id)
+    copy!(IdArray, ast_compiler.IdArray)
+    copy!(Skip, ast_compiler.Skip)
+    copy!(Sample, ast_compiler.Sample)
+    copy!(Transform, ast_compiler.Transform)
+    copy!(Cond, ast_compiler.Condition)
+    copy!(IfElse, ast_compiler.IfElse)
+    copy!(For, ast_compiler.For)
+    copy!(Switch, ast_compiler.Switch)
+    copy!(Sequence, ast_compiler.Sequence)
+
+    # DNF.
+    copy!(dnf_to_disjoint_union, dnf.dnf_to_disjoint_union)
+
+    # Utils.
+    copy!(binspace, sym_util.binspace)
+    copy!(Fraction, fractions.Fraction)
+    copy!(Sqrt, transforms.Sqrt)
+
+end
+__init__()
+
+export fractions, sppl, dists, ast_compiler, sppl_compiler, transforms, sym_util, dnf, compiler
 export Id, IdArray, Skip, Sample, Transform, Cond, IfElse, For, Switch, Sequence
 const array = IdArray
 export array
-
-# DNF.
-dnf_to_disjoint_union = dnf.dnf_to_disjoint_union
-
+set(s) = py"{$s}"; export set
 export dnf_to_disjoint_union
-
-# Utils.
-binspace = sym_util.binspace
-Fraction = fractions.Fraction
-Sqrt = transforms.Sqrt
-
-export binspace, Fraction
-export Sqrt
-
+export binspace, Fraction, Sqrt
 
 # Distributions.
 include("distributions.jl")
