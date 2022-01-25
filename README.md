@@ -3,7 +3,7 @@
 </p>
 <br>
 
-A small DSL for programming [`sppl`](https://github.com/probcomp/sppl) across [PyCall.jl](https://github.com/JuliaPy/PyCall.jl).
+A small DSL for programming [`sppl`](https://github.com/probcomp/sppl) across [PythonCall.jl](https://github.com/cjdoris/PythonCall.jl).
 
 ## Example usage
 
