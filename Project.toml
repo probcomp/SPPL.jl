@@ -5,9 +5,9 @@ version = "0.1.3"
 
 [deps]
 Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+CondaPkg = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 
 [compat]
 Conda = "1.4"
