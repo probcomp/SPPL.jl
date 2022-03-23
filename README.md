@@ -1,5 +1,5 @@
 <p align="center">
-<img height="150px" src="sppl.png"/>
+<img height="100px" src="sppl.png"/>
 </p>
 <br>
 
