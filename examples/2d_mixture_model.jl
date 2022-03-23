@@ -1,7 +1,6 @@
 module MixtureModel_2D
 
-include("../src/SPPL.jl")
-using .SPPL
+using SPPL
 
 n = @sppl begin
     X ~ SPPL.Normal(0, 2)

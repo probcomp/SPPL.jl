@@ -1,7 +1,6 @@
 module IndianGPA
 
-include("../src/SPPL.jl")
-using .SPPL
+using SPPL
 
 # Block parsing.
 n = @sppl begin

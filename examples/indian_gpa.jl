@@ -1,7 +1,6 @@
 module IndianGPA
 
-include("../src/SPPL.jl")
-using .SPPL
+using SPPL
 
 n = @sppl begin
     Nationality ~ SPPL.Choice([:India => 0.5, :USA => 0.5])

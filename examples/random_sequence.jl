@@ -1,13 +1,12 @@
 module RandomSequence
 
-include("../src/SPPL.jl")
-using .SPPL
+using SPPL
 
-ns = @sppl begin
+ns = @sppl (debug) begin
     X = array(3)
     W = array(3)
-    X[1] ~ SPPL.Normal()
-    for i in 2 : 4
+    X[0] ~ SPPL.Normal()
+    for i in 1 : 3
         if X[i - 1] > 0
             X[i] ~ SPPL.Normal(0, 1)
             W[i] ~ SPPL.Atomic(0)
@@ -20,18 +19,18 @@ end
 
 random_sequence = ns.model
 
-# Observe X[2] > 0.
-random_sequence_given_X1 = condition(model, ns.X[2] > 0)
-probability(random_sequence, ns.X[1] > 0) |> println
-probability(random_sequence_given_X1, ns.X[1] > 0) |> println
+# Observe X[1] > 0.
+random_sequence_given_X1 = condition(model, ns.X[1] > 0)
+println(probability(random_sequence, ns.X[1] > 0))
+println(probability(random_sequence_given_X1, ns.X[1] > 0))
 
-# Observe x[3] > 0.
-random_sequence_given_X2 = random_sequence.condition(ns.X[3] > 0)
-probability(random_sequence, ns.X[1] > 0) |> println
-probability(random_sequence_given_X2, ns.X[1] > 0) |> println
+# Observe x[2] > 0.
+random_sequence_given_X2 = random_sequence.condition(ns.X[2] > 0)
+println(probability(random_sequence, ns.X[1] > 0))
+println(probability(random_sequence_given_X2, ns.X[1] > 0))
 
 # Compute mutual information.
-mutual_information(random_sequence, ns.X[1]>0, ns.X[2]>0) |> println
-mutual_information(random_sequence, ns.X[1]>0, ns.X[3]>0) |> println
+mutual_information(random_sequence, ns.X[0]>0, ns.X[1]>0) |> println
+mutual_information(random_sequence, ns.X[0]>0, ns.X[2]>0) |> println
 
 end # module
