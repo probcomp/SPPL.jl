@@ -39,7 +39,10 @@ println(spn)
 ```
 
 ```
-(nationality = <py Identity('nationality')>, perfect = <py Identity('perfect')>, gpa = <py Identity('gpa')>, model = <py sppl.spe.ProductSPE object at 0x1e6ce3d60>)
+(nationality = <py Identity('nationality')>, 
+ perfect = <py Identity('perfect')>, 
+ gpa = <py Identity('gpa')>, 
+ model = <py sppl.spe.ProductSPE object at 0x1e6ce3d60>)
 ```
 
 Of course, you can use native abstractions:
@@ -59,9 +62,17 @@ which expands to produce a generator:
       gpa = Main.IndianGPA.SPPL.Id(:gpa)
       nationality = Main.IndianGPA.SPPL.Id(:nationality)
       perfect = Main.IndianGPA.SPPL.Id(:perfect)
-      command = Main.IndianGPA.SPPL.Sequence(Main.IndianGPA.SPPL.Sample(nationality, SPPL.Choice([:India => x, :USA => 1 - x])), Main.IndianGPA.SPPL.Sample(perfect, SPPL.Bernoulli(0.1)), Main.IndianGPA.SPPL.Sample(gpa, SPPL.Atomic(4)))
+      command = Main.IndianGPA.SPPL.Sequence(
+          Main.IndianGPA.SPPL.Sample(nationality, 
+            SPPL.Choice([:India => x, :USA => 1 - x])), 
+          Main.IndianGPA.SPPL.Sample(perfect, SPPL.Bernoulli(0.1)),
+          Main.IndianGPA.SPPL.Sample(gpa, SPPL.Atomic(4))
+        )
       model = command.interpret()
-      namespace = (nationality = Main.IndianGPA.SPPL.Id(:nationality), perfect = Main.IndianGPA.SPPL.Id(:perfect), gpa = Main.IndianGPA.SPPL.Id(:gpa), model = model)
+      namespace = (nationality = Main.IndianGPA.SPPL.Id(:nationality), 
+                   perfect = Main.IndianGPA.SPPL.Id(:perfect), 
+                   gpa = Main.IndianGPA.SPPL.Id(:gpa), 
+                   model = model)
       namespace
   end)
 ```
