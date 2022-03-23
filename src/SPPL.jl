@@ -77,6 +77,7 @@ export binspace, Fraction, Sqrt
 #####
 
 Atomic(loc) = dists.atomic(loc = loc)
+Choice(d) = dists.NominalDistribution(pydict(d))
 Choice(d::Vector) = dists.NominalDistribution(pydict(d))
 function Choice(d::Vector{Pair{Symbol, T}}) where T
     d = map(d) do (k, v)
@@ -231,7 +232,7 @@ function parse_longdef_function(expr::Expr)
             elseif @capture(e, v_ = array(n_))
                 !(v in keys(variable_declarations)) && begin
                     variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :IdArray), QuoteNode(v), n))
-                    push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :IdArray), QuoteNode(v), 3)))
+                    push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :IdArray), QuoteNode(v), n)))
                 end
                 e = Expr(:noop)
 
@@ -272,6 +273,11 @@ function parse_longdef_function(expr::Expr)
 
         push!(commands, new)
     end
+    
+    # Filter commands to remove :noop expressions caused by array declarations exprs (see this part of the conditional matching above).
+    commands = filter(commands) do expr
+        expr isa Expr && expr.head != :noop
+    end
 
     # Transformed body of method.
     new_body = Expr(:block, values(variable_declarations)...,
@@ -309,7 +315,7 @@ function parse_anonymous_function(expr::Expr)
             elseif @capture(e, v_ = array(n_))
                 !(v in keys(variable_declarations)) && begin
                     variable_declarations[v] = Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :IdArray), QuoteNode(v), n))
-                    push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :IdArray), QuoteNode(v), 3)))
+                    push!(namespace, Expr(:(=), v, Expr(:call, GlobalRef(SPPL, :IdArray), QuoteNode(v), n)))
                 end
                 e = Expr(:noop)
 
