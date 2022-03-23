@@ -3,9 +3,12 @@
 </p>
 <br>
 
-A small DSL for programming [`sppl`](https://github.com/probcomp/sppl) across [PythonCall.jl](https://github.com/cjdoris/PythonCall.jl).
+![Build Status](https://github.com/probcomp/SPPL.jl/actions/workflows/CI.yml/badge.svg)
+[![Link to Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://probcomp.github.io/SPPL.jl/dev)
 
-## Example usage
+> Julia bindings for using [`sppl`](https://github.com/probcomp/sppl) across [PythonCall.jl](https://github.com/cjdoris/PythonCall.jl).
+
+### Example usage
 
 Allows the usage of direct string macros:
 
@@ -77,7 +80,7 @@ which expands to produce a generator:
   end)
 ```
 
-## Syntax
+### Syntax
 
 There are a few special pieces of syntax which the user should keep in mind. Some of these points make the macro parsing unambiguous, others are more for convenience.
 
