@@ -9,6 +9,6 @@ namespace = @sppl begin
     end
 end
 
-@info namespace.model.logprob(namespace.X << set(1))
+namespace.model.logprob(namespace.X << set(1))
 
 end # module
