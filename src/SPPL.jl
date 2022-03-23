@@ -21,7 +21,7 @@ const Transform = PythonCall.pynew()
 const Cond = PythonCall.pynew()
 const IfElse = PythonCall.pynew()
 const For = PythonCall.pynew()
-const Switch = PythonCall.pynew()
+const SSwitch = PythonCall.pynew()
 const Sequence = PythonCall.pynew()
 const dnf_to_disjoint_union = PythonCall.pynew()
 const binspace = PythonCall.pynew()
@@ -48,7 +48,7 @@ function __init__()
     PythonCall.pycopy!(Cond, ast_compiler.Condition)
     PythonCall.pycopy!(IfElse, ast_compiler.IfElse)
     PythonCall.pycopy!(For, ast_compiler.For)
-    PythonCall.pycopy!(Switch, ast_compiler.Switch)
+    PythonCall.pycopy!(SSwitch, ast_compiler.Switch)
     PythonCall.pycopy!(Sequence, ast_compiler.Sequence)
     PythonCall.pycopy!(dnf_to_disjoint_union, dnf.dnf_to_disjoint_union)
     PythonCall.pycopy!(binspace, sym_util.binspace)
@@ -58,6 +58,10 @@ end
 
 export fractions, sppl, dists, ast_compiler, sppl_compiler, transforms, sym_util, dnf, compiler
 export Id, IdArray, Skip, Sample, Transform, Cond, IfElse, For, Switch, Sequence
+
+function Switch(fn::Function, y, enumeration)
+    return SSwitch(y, enumeration, fn)
+end
 
 const array = IdArray
 export array
