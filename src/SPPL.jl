@@ -178,7 +178,11 @@ function parse_block(expr::Expr)
                      length(body2) == 1 ? body2[1] : Expr(:call, GlobalRef(SPPL, :Sequence), body2...))
 
             elseif @capture(e, for ind_ in stx_ : endx_ body_ end)
-                Expr(:call, GlobalRef(SPPL, :For), stx, endx, Expr(:->, ind, body)) 
+                # Note: the endx + 1 gives for loops Julia bound inclusion semantics.
+                Expr(:call, GlobalRef(SPPL, :For), 
+                     stx, 
+                     Expr(:call, +, endx, 1),
+                     Expr(:->, ind, body)) 
 
             elseif @capture(e, cond_ ? body1__ : body2__)
                 Expr(:call, GlobalRef(SPPL, :IfElse), cond, 
