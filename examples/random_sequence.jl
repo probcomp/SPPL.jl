@@ -6,7 +6,7 @@ ns = @sppl (debug) begin
     X = array(3)
     W = array(3)
     X[0] ~ SPPL.Normal()
-    for i in 1 : 3
+    for i in 1 : 2
         if X[i - 1] > 0
             X[i] ~ SPPL.Normal(0, 1)
             W[i] ~ SPPL.Atomic(0)
