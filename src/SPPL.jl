@@ -1,5 +1,7 @@
 module SPPL
 
+# A wrapper package (using `PythonCall.jl`) to `sppl`.
+
 using MacroTools
 using MacroTools: @capture, rmlines, unblock
 using PythonCall
