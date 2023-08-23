@@ -1,0 +1,12 @@
+name = "SPPL"
+uuid = "d4869578-49cb-4439-a9cc-e16ca03432c4"
+authors = ["femtomc <mccoybecker@gmail.com>"]
+version = "0.1.4"
+
+[deps]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Intervals = "d8418881-c3e1-53bb-8760-2df7ec849ed5"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
