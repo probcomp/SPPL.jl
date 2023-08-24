@@ -3,14 +3,14 @@ preimage(f, ::EmptySet) = EMPTY_SET
 
 preimage(::typeof(identity), y) = y
 
-function preimage(f, y::Vector)
-    preimages = preimage.(Ref(f), y)
-    union(preimages...)
-end
+# function preimage(f, y::Vector)
+#     preimages = preimage.(Ref(f), y)
+#     union(preimages...)
+# end
 
 function preimage(::typeof(sqrt), y::Real)
     y < 0 && return EMPTY_SET
-    y^2
+    FiniteReal([y^2])
 end
 
 preimage(::typeof(sqrt), y::Interval{Nothing,Unbounded,Unbounded}) = 0 .. nothing
