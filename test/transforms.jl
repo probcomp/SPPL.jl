@@ -15,9 +15,15 @@ function test_log()
     @test preimage(log, Interval(nothing, nothing)) == Interval(nothing, nothing)
     @test preimage(log, Interval(-1.0, 1.0)) == Interval(1 / ℯ, ℯ)
 end
+function test_abs()
+    @test preimage(abs, 0.0) == 0.0
+    @test preimage(abs, 1.0) == (-1, 1)
+    @test preimage(abs, -1.0) == EMPTY_SET
+end
 
 @testset "transforms" begin
     @test preimage(sqrt, EMPTY_SET) == EMPTY_SET
     test_sqrt()
     test_log()
+    test_abs()
 end

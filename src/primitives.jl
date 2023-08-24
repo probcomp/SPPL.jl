@@ -1,5 +1,3 @@
-using Distributions
-using Symbolics
 
 abstract type SPPLDistribution end
 

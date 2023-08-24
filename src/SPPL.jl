@@ -1,5 +1,7 @@
 module SPPL
 using Intervals
+using Distributions
+import Random: AbstractRNG
 import Base: rand
 
 include("transforms.jl")
