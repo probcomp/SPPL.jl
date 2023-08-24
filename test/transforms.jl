@@ -1,7 +1,7 @@
 function test_sqrt()
-    @test preimage(sqrt, 2) == 4
+    @test preimage(sqrt, 2) == FiniteReal(Set([4]), true)
     @test preimage(sqrt, -1) == EMPTY_SET
-    @test preimage(sqrt, Interval(nothing, nothing)) == Interval{Closed,Intervals.Unbounded}(0, nothing)
+    @test preimage(sqrt, -Inf .. Inf) == 0 .. Inf
     @test preimage(sqrt, 2 .. 5) == 4 .. 25
     @test preimage(sqrt, -1 .. 4) == 0 .. 16
     @test preimage(sqrt, Interval{Open,Closed}(3, 5)) == Interval{Open,Closed}(9, 25)
@@ -10,14 +10,15 @@ function test_sqrt()
 end
 
 function test_log()
-    @test preimage(log, 1.0) ≈ ℯ
-    @test preimage(log, Interval(nothing, nothing)) == Interval(nothing, nothing)
-    @test preimage(log, Interval(-1.0, 1.0)) == Interval(1 / ℯ, ℯ)
+    @test_broken preimage(log, 0.0) ≈ FiniteReal(0.0)
+    @test preimage(log, -Inf .. Inf) == 0 .. Inf
+    @test preimage(log, -1.0 .. 1.0) ≈ 1 / ℯ .. ℯ
+    @test preimage(log, 0 .. Inf) == 1 .. Inf
 end
 function test_abs()
-    @test preimage(abs, 0.0) == 0.0
-    @test preimage(abs, 1.0) == (-1, 1)
     @test preimage(abs, -1.0) == EMPTY_SET
+    @test preimage(abs, 0.0) == FiniteReal(0.0, b=true)
+    @test preimage(abs, 1.0) == FiniteReal(-1.0, 1.0)
 end
 
 @testset "transforms" begin

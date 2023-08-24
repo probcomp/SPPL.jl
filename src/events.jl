@@ -1,31 +1,48 @@
 abstract type Event end
-
-struct EventBasic <: Event
+struct SolvedEvent{T<:SPPLSet} <: Event
+    symbol::Symbol
+    predicate::T
 end
-struct AndEvent <: Event
-    events::Vector{Event}
+function (e::SolvedEvent)(assignment::Dict{Symbol,T}) where {T}
+    !(e.symbol in keys(assignment)) && error("Error: Cannot evaluate event. Symbol $(e.symbol) not defined")
+    val = assignment[e.symbol]
+    val in e.predicate
 end
 
-struct OrEvent <: Event
-    events::Vector{Event}
+struct UnsolvedEvent{T<:SPPLSet} <: Event
+    symbol::Symbol
+    predicte::T
+    environment::Dict{Symbol,Any}
 end
-simplify(event::Event) = 0
 
-# Base.in(x, event::Event) = (x in event.events)
-# Base.in(x::AbstractDict{Symbol,T}, event::Event) where {T} = event.symbol in keys(x) && x[event.symbol] in event.events
+struct AndEvent{T<:Event} <: Event
+    events::Vector{T}
+end
 
-# function Base.in(x::AbstractDict{Symbol,T}, event::AndEvent) where {T}
-#     for e in event.events
-#         !(x in e) && return false
-#     end
-#     return true
-# end
+(e::AndEvent)(assignment::Dict) = all(x -> x(assignment), e.events)
 
-# function Base.in(x::AbstractDict{Symbol,T}, event::OrEvent) where {T}
-#     for e in event.events
-#         x in e && return true
-#     end
-#     return false
-# end
+struct OrEvent{T<:Event} <: Event
+    events::Vector{T}
+end
 
-export AndEvent, OrEvent
+(e::OrEvent)(assignment::Dict) = any(x -> x(assignment), e.events)
+
+preimage(e::SolvedEvent) = Dict(e.symbol => e.predicate)
+
+##################
+# Normalization
+##################
+
+function dnf_factor(event)
+end
+
+function dnf_normalize(event::Event)
+
+end
+
+function dnf_non_disjoint_clauses(event)
+end
+
+function dnf_to_disjoint_union(event)
+end
+export AndEvent, OrEvent, SolvedEvent, UnsolvedEvent

@@ -1,4 +1,3 @@
-
 preimage(f, ::EmptySet) = EMPTY_SET
 
 preimage(::typeof(identity), y) = y
@@ -10,44 +9,47 @@ preimage(::typeof(identity), y) = y
 
 function preimage(::typeof(sqrt), y::Real)
     y < 0 && return EMPTY_SET
-    FiniteReal([y^2])
+    FiniteReal(y^2)
 end
 
-preimage(::typeof(sqrt), y::Interval{Nothing,Unbounded,Unbounded}) = 0 .. nothing
+preimage(::typeof(sqrt), y::Interval{Unbounded,Unbounded}) = 0..Inf
 
-function preimage(::typeof(sqrt), y::Interval{T,A,B}) where {T,A,B}
-    if last(y) !== nothing && (last(y) < 0 || (last(y) == 0 && B == Open))
+function preimage(::typeof(sqrt), y::Interval{L,R}) where {L,R}
+    if last(y) < 0 || (last(y) == 0 && R == Open)
         return EMPTY_SET
     end
-    clipped = (first(y) === nothing || first(y) < 0)
+    clipped = first(y) < 0
     left = clipped ? 0 : first(y)^2
-    right = (last(y) === nothing) ? nothing : last(y)^2
-    left_bound = clipped ? Closed : A
-    right_bound = B
-    if left === right && (left_bound == Open || right_bound == Open)
-        return EMPTY_SET
-    end
+    right = last(y)^2
+    left_bound = clipped ? Closed : L
+    right_bound = R
     return Interval{left_bound,right_bound}(left, right)
 end
 
-preimage(::typeof(log), y::Real) = exp(y)
-preimage(::typeof(log), y::Interval{Nothing,Unbounded,Unbounded}) = return Interval(nothing, nothing)
-function preimage(::typeof(log), y::Interval{T,A,B}) where {T,A,B}
+preimage(::typeof(log), y::Real) = FiniteReal(exp(y))
+preimage(::typeof(log), y::Interval{Unbounded,Unbounded}) = return Interval(0, Inf)
+function preimage(::typeof(log), y::Interval{L,R}) where {L,R}
     left = (first(y) === nothing) ? nothing : exp(first(y))
     right = (last(y) === nothing) ? nothing : exp(last(y))
-    if left === right && (A == Open || B == Open)
-        return EMPTY_SET
-    end
-    Interval{A,B}(left, right)
+    Interval{L,R}(left, right)
 end
 
 function preimage(::typeof(abs), y::Real)
     y < 0 && return EMPTY_SET
-    error("Unimplemented finite set")
+    if y == 0
+        return FiniteReal(y)
+    end
+    FiniteReal(y,-y)
 end
-preimage(::typeof(abs), y::Interval{Nothing,Unbounded,Unbounded}) = 0 .. nothing
-function preimage(::typeof(abs), y::Interval{T,A,B}) where {T,A,B}
-    error("Unimplemented")
+preimage(::typeof(abs), y::Interval{Unbounded,Unbounded}) = 0..Inf
+function preimage(::typeof(abs), y::Interval{L,R}) where {L,R}
+    if last(y) < 0 || (last(y) ==0 && R == Open)
+        return EMPTY_SET
+    end
+    clipped = first(y) < 0
+    left = clipped ? 0 : first(y)
+    left_bound = clipped ? Closed : L
+    union(Interval{R,left_bound}(-last(y), -left), Interval{left_bound,R}(left, last(y)))
 end
 
 
