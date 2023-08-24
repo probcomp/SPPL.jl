@@ -4,13 +4,13 @@ using Distributions
 import Random: AbstractRNG
 import Base: rand
 
+include("intervals.jl")
 include("transforms.jl")
 include("spe.jl")
 include("events.jl")
 include("dnf.jl")
-include("primitives.jl")
+# include("primitives.jl")
 include("compiler/compiler.jl")
 
 
-export SumNode, ProductNode, Leaf
 end

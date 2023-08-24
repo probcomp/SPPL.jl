@@ -1,6 +1,3 @@
-using Intervals
-using Distributions
-
 abstract type SPE end
 
 ##############
@@ -36,11 +33,20 @@ struct DiscreteLeaf <: RealLeaf
     support::Interval
     transform
 end
-
-function Base.rand(rng::AbstractRNG, leaf::DiscreteLeaf)
-    u = rand(rng)
-    dist = leaf.dist
+function logpdf(leaf::ContinuousLeaf, assignments::Dict{Symbol,T}) where {T}
+    haskey(assignments, leaf.symbol) || error("Error: Symbol not defined.")
+    error("Unimplemented")
+    # logpdf(leaf, assignments[leaf.symbol])
 end
+
+@inline function logpdf(leaf::DiscreteLeaf, val::Real)
+
+end
+
+# function Base.rand(rng::AbstractRNG, leaf::DiscreteLeaf)
+#     u = rand(rng)
+#     dist = leaf.dist
+# end
 
 struct NominalLeaf <: Leaf
     symbol::Symbol
@@ -55,7 +61,7 @@ struct NominalLeaf <: Leaf
     end
 end
 
-Base.in(x, leaf::Leaf) = x in leaf.support
+# Base.in(x, leaf::Leaf) = x in leaf.support
 
 ############
 # Sum SPE
@@ -70,7 +76,7 @@ struct SumSPE{T<:AbstractFloat,S<:SPE} <: BranchSPE
         length(weights) != length(children) && error("Error: Mismatched input lengths. The weight and children vector must have the same length.")
         children_symbols = get_symbols.(children)
         all(x -> x == children_symbols[1], children_symbols) || error("Error: Sum SPE scope mismatch. The children do not have the same symbols.")
-        # TODO: One optimization is to inspect children if they are sumnodes and lift it's children. 
+        # TODO: Lift child SumSPEs up
         new{T,S}(weights, children)
     end
 end
@@ -101,15 +107,13 @@ struct ProductSPE{T<:SPE} <: BranchSPE
                 child1 == child2 && error("Product SPE scope mismatch. Children must have different variable scopes.")
             end
         end
+        # TODO: Lift child ProducSPEs up
         new{T}(children)
     end
 end
 
-function Base.rand(rng::AbstractRNG, spe::ProductSPE)
-    # TODO: Consider threading?
-    samples = reduce(merge, rand.(Ref(rng), spe.children))
-    samples
-end
+# TODO: Consider threading?
+Base.rand(rng::AbstractRNG, spe::ProductSPE) = reduce(merge, rand.(Ref(rng), spe.children))
 
 export SumSPE, ProductSPE, ContinuousLeaf, DiscreteLeaf, NominalLeaf, get_symbols
 export Distributions, Intervals, .., Interval, Closed, Open

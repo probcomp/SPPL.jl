@@ -1,5 +1,3 @@
-using Intervals
-
 abstract type Event end
 
 struct TransformEvent{F<:Function,E<:Event} <: Event

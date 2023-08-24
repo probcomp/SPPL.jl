@@ -1,4 +1,3 @@
-using Intervals
 function test_sqrt()
     @test preimage(sqrt, 2) == 4
     @test preimage(sqrt, -1) == EMPTY_SET
