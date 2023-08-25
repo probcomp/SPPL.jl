@@ -1,40 +1,43 @@
 abstract type Event end
 
-struct SolvedEvent{T<:SPPLSet} <: Event
+abstract type BasicEvent <: Event end
+(e::Event)(assignment::Dict) = assignment in e
+
+struct SolvedEvent{T<:SPPLSet} <: BasicEvent
     symbol::Symbol
     predicate::T
 end
 
-function (e::SolvedEvent)(assignment::Dict{Symbol,T}) where {T}
+function Base.in(assignment::Dict{Symbol,T}, e::SolvedEvent) where {T}
     !(e.symbol in keys(assignment)) && error("Error: Cannot evaluate event. Symbol $(e.symbol) not defined")
-    val = assignment[e.symbol]
-    val in e.predicate
+    assignment[e.symbol] in e.predicate
 end
-(e::SolvedEvent)(x) = x in e.predicate
 
-struct UnsolvedEvent{T<:SPPLSet} <: Event
+struct UnsolvedEvent{T<:SPPLSet} <: BasicEvent
     symbol::Symbol
     predicate::T
-    environment::Dict{Symbol,Any}
+    transform
 end
 
-struct AndEvent{T<:Event} <: Event
-    events::Vector{T}
+struct AndEvent{T} <: Event
+    events::T
 end
 
-(e::AndEvent)(assignment::Dict) = all(x -> x(assignment), e.events)
+Base.in(assignment::Dict{Symbol,T}, e::AndEvent) where {T} = all(x -> x(assignment), e.events)
 
-struct OrEvent{T<:Event} <: Event
-    events::Vector{T}
+struct OrEvent{T} <: Event
+    events::T
 end
 
 (e::OrEvent)(assignment::Dict) = any(x -> x(assignment), e.events)
+Base.in(assignment::Dict{Symbol,T}, e::OrEvent) where {T} = any(x -> x(assignment), e.events)
 
 #############
 # Inversion
 #############
 function preimage(e::SolvedEvent, b)
     if b == 0
+        # println(e.predicate)
         return e.symbol => complement(e.predicate)
     elseif b == 1
         return e.symbol => e.predicate
@@ -43,24 +46,25 @@ function preimage(e::SolvedEvent, b)
 end
 
 function preimage(e::UnsolvedEvent, b)
-    # if b == 0
-    #     return
-    # else
-    #     return
-    # end
-    return e.symbol => EMPTY_SET
+    I = preimage(e.transform, b == 0 ? complement(e.predicate) : e.predicate)
+    return e.symbol => I
 end
 
+function preimage(e::AndEvent, b)
+    regions = preimage.(e.events, Ref(b))
+    print(regions)
+end
 ##################
 # Normalization
 ##################
 
+function dnf(event::Event)
+
+end
+
 function dnf_factor(event)
 end
 
-function dnf_normalize(event::Event)
-
-end
 
 function dnf_non_disjoint_clauses(event)
 end

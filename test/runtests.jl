@@ -4,7 +4,7 @@ using SPPL
 using Test
 
 # include("examples.jl")
-include("transforms.jl")
 include("intervals.jl")
+include("transforms.jl")
 
 end # module

@@ -25,15 +25,22 @@ function test_interval()
           Interval{Open,Closed}(2, 2.0) == EMPTY_SET
     @test_throws Exception Interval{Closed,Closed}(2, Inf)
     @test_throws Exception Interval{Open,Closed}(-Inf, 2)
+
+    @test 0 in -1 .. 1
+    @test -1 in -1 .. 1
+    @test !(-1 in Interval{Open,Closed}(-1, 1))
+    @test Inf in 1 .. Inf
+    @test !(-Inf in 1 .. Inf)
+    @test !(Inf in 1 .. 3)
 end
 
 function test_complement()
     @test complement(FiniteNominal(:x, :y, :z; b=true)) == FiniteNominal(:x, :y, :z; b=false)
-    @test_broken complement(FiniteReal(1, 2, 3; b=true)) == "what"
-    @test_broken complement(EMPTY_SET) == -Inf .. Inf # -Inf .. Inf ∪ nominal universe?
+    @test complement(FiniteReal(1, 2, 3; b=true)) == FiniteReal(1, 2, 3; b=false)
+    @test_skip complement(EMPTY_SET) == -Inf .. Inf # -Inf .. Inf ∪ nominal universe?
     @test complement(-Inf .. Inf) == EMPTY_SET
     @test complement(-Inf .. 2) == Interval{Open,Unbounded}(2, Inf)
-    @test_broken complement(2 .. 3) == 1 .. 4
+    @test complement(2 .. 3) == Concat(Interval{Unbounded,Open}(-Inf, 2), Interval{Open,Unbounded}(3, Inf))
     @test_broken complement(Interval{Closed,Open}(-1, 1)) == 1 .. 4
 end
 
@@ -43,14 +50,18 @@ function test_union()
     @test FiniteNominal("a") ∪ FiniteNominal("b") == FiniteNominal("a", "b")
     @test FiniteNominal("a"; b=false) ∪ FiniteNominal("b"; b=false) ==
           FiniteNominal("a", "b"; b=false)
-    @test FiniteNominal("a") ∪ FiniteNominal("b"; b=false) == 0
+    @test FiniteNominal("a") ∪ FiniteNominal("b"; b=false) ==
+          Concat(FiniteNominal("a"), FiniteNominal("b"; b=false))
 
     @test (-Inf .. Inf) ∪ (1 .. 5) == -Inf .. Inf
     @test (-1 .. 1) ∪ (-2 .. 2) == -2 .. 2
     @test (0 .. 2) ∪ (1 .. 3) == (0 .. 3)
     @test (-Inf .. 2) ∪ (1 .. Inf) == -Inf .. Inf
-    @test_broken Interval{Closed,Open}(-1, 0) ∪ Interval{Open,Closed}(0, 1) == 0
+    @test Interval{Closed,Open}(-1, 0) ∪ Interval{Open,Closed}(0, 1) ==
+          Concat(Interval{Closed,Open}(-1, 0), Interval{Open,Closed}(0, 1))
     @test (-Inf .. 2) ∪ Interval{Open,Closed}(2, 3) == -Inf .. 3
+    @test Interval{Open,Closed}(-1, 2) ∪ Interval{Open,Open}(1, 3) ==
+          Interval{Open,Open}(-1, 3)
 end
 
 function test_intersect()
