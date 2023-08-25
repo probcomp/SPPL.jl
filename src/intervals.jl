@@ -29,7 +29,13 @@ abstract type Bounded <: Bound end
 struct Open <: Bounded end
 struct Closed <: Bounded end
 struct Unbounded <: Bound end
-
+Base.max(::Type{<:Bounded}, ::Type{Unbounded}) = Unbounded
+Base.max(::Type{Unbounded}, ::Type{<:Bounded}) = Unbounded
+Base.max(::Type{Closed}, ::Type{Open}) = Open
+Base.max(::Type{Open}, ::Type{Closed}) = Open
+Base.max(::Type{Closed}, ::Type{Closed}) = Closed
+Base.max(::Type{Open}, ::Type{Open}) = Open
+Base.max(::Type{Unbounded}, ::Type{Unbounded}) = Unbounded
 opposite(::Type{Closed}) = Open
 opposite(::Type{Open}) = Closed
 
@@ -55,16 +61,29 @@ function Interval(f::T, l::U) where {T,U}
     Interval{L,R,T,U}(f, l)
 end
 Interval{L,R}(f::T, l::U) where {L,R,T,U} = Interval{L,R,T,U}(f, l)
-Base.:(==)(x::Interval, y::Interval) = x.f == y.f && x.l == y.l
-Base.isapprox(x::Interval, y::Interval) = x.f ≈ y.f && x.l ≈ y.l
+bounds_match(x::Interval{L,R}, y::Interval{A,B}) where {L,R,A,B} = (L == A && R == B)
+Base.:(==)(x::Interval, y::Interval) = x.f == y.f && x.l == y.l && bounds_match(x, y)
+Base.isapprox(x::Interval, y::Interval) = x.f ≈ y.f && x.l ≈ y.l && bounds_match(x, y)
 Base.first(x::Interval) = x.f
 Base.last(x::Interval) = x.l
 is_all(x::Interval) = !isfinite(first(x)) && !isfinite(last(x))
 
 #############
+# Concat
+#############
+struct Concat <: SPPLSet
+    nominal::Tuple{FiniteNominal,FiniteNominal}
+    finite_real::Tuple{FiniteReal,FiniteReal}
+    interval::Vector{Interval}
+end
+Concat(intervals...) = 1
+
+# TODO: Consider multiple element versions of complement, union, intersection
+#############
 # Complement
 #############
-complement(::EmptySet) = Interval(Inf, Inf)
+complement(::EmptySet) = Interval(-Inf, Inf)
+complement(x::FiniteNominal) = FiniteNominal(copy(x.members), !x.b) # TODO: Slow?
 complement(x::Interval{Unbounded,Unbounded}) = EMPTY_SET
 function complement(x::Interval{L,R}) where {L,R}
     left = isfinite(first(x)) ? Interval{Unbounded,opposite(L)}(-Inf, first(x)) : EMPTY_SET
@@ -76,28 +95,48 @@ end
 # Intersection
 ###############
 Base.intersect(x::SPPLSet, y::SPPLSet) = 1
-Base.intersect(x::EmptySet, y::SPPLSet) = EMPTY_SET
-Base.intersect(x::SPPLSet, y::EmptySet) = EMPTY_SET
+Base.intersect(::EmptySet, ::SPPLSet) = EMPTY_SET
+Base.intersect(::SPPLSet, ::EmptySet) = EMPTY_SET
+function Base.intersect(x::FiniteNominal, y::FiniteNominal)
+    !xor(x.b, y.b) && return FiniteNominal(intersect(x.members, y.members), x.b)
+    x.b && return FiniteNominal(Set(Iterators.filter(v -> v in y, x.members)), true) # TODO: Non-allocating version
+    return FiniteNominal(Set(Iterators.filter(v -> v in x, y.members)), true)
+end
+
 function Base.intersect(x::Interval{L,R}, y::Interval{T,U}) where {L,R,T,U}
     is_all(x) && return y
     is_all(y) && return x
-    if first(x) > first(y)
-        return intersect(y, x)
-    end
-    if last(x) < first(y)
+    if last(x) < first(y) || last(y) < first(x)
         return EMPTY_SET
     end
-    return Interval{R,T}(last(x), first(y))
-end
+    start = max(first(x), first(y))
+    stop = min(last(x), last(y))
+    if start == first(x) && start == first(y)
+        left = max(L, T) # Refer to precedence above
+    elseif start == first(x) && start != first(y)
+        left = L
+    else
+        left = T
+    end
 
-@inline Base.intersect(x::FiniteNominal, y::FiniteNominal) = intersect(x.members, y.members)
+    if stop == last(x) && stop == last(y)
+        right = max(R, U) # Refer to precedence above
+    elseif stop == last(x) && stop != last(y)
+        right = R
+    else
+        println("Huh")
+        right = U
+    end
+    return Interval{left,right}(start, stop)
+end
+@inline Base.intersect(x::FiniteReal, y::FiniteReal) = intersect(x.members, y.members)
 
 ##########
 # Union
 ##########
 Base.union(x::SPPLSet, y::SPPLSet) = 1
-Base.union(x::EmptySet, y::SPPLSet) = y
-Base.union(x::SPPLSet, y::EmptySet) = x
+Base.union(::EmptySet, y::SPPLSet) = y
+Base.union(x::SPPLSet, ::EmptySet) = x
 function Base.union(x::Interval{L,R}, y::Interval{T,U}) where {L,R,T,U}
     is_all(x) && return x
     is_all(y) && return y
@@ -110,6 +149,11 @@ function Base.union(x::Interval{L,R}, y::Interval{T,U}) where {L,R,T,U}
     return Interval{L,U}(first(x), last(y))
 end
 @inline Base.union(x::FiniteNominal, y::FiniteNominal) = union(x.members, y.members)
+@inline Base.union(x::FiniteReal, y::FiniteReal) = union(x.members, y.members)
+# TODO: Add macro to define the reverse?
+function Base.union(x::Interval{L,R}, y::FiniteReal{T}) where {L,R,T<:Real}
+    1
+end
 
 ##############
 # Containment
@@ -129,4 +173,5 @@ end
 # Convenience
 ##############
 ..(x::Real, y::Real) = Interval(x, y)
+const ℝ = -Inf .. Inf
 export FiniteNominal, FiniteReal, Interval, Open, Closed, Unbounded, complement

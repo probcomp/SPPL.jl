@@ -41,7 +41,7 @@ function preimage(::typeof(abs), y::Real)
     end
     FiniteReal(y,-y)
 end
-preimage(::typeof(abs), y::Interval{Unbounded,Unbounded}) = 0..Inf
+preimage(::typeof(abs), y::Interval{Unbounded,Unbounded}) = -Inf..Inf
 function preimage(::typeof(abs), y::Interval{L,R}) where {L,R}
     if last(y) < 0 || (last(y) ==0 && R == Open)
         return EMPTY_SET

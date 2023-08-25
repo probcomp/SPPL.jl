@@ -19,6 +19,10 @@ function test_abs()
     @test preimage(abs, -1.0) == EMPTY_SET
     @test preimage(abs, 0.0) == FiniteReal(0.0, b=true)
     @test preimage(abs, 1.0) == FiniteReal(-1.0, 1.0)
+    @test preimage(abs, -1.0 .. 3.0) == -3.0 .. 3.0
+    @test preimage(abs, -Inf .. Inf) == -Inf .. Inf
+    @test_skip preimage(abs, 2 .. 3) == [-3 .. -2, 2 .. 3]
+    @test_skip preimage(abs, 2 .. 3) == [2 .. 3, -3 .. -2]
 end
 
 @testset "transforms" begin
