@@ -10,6 +10,7 @@ function (e::SolvedEvent)(assignment::Dict{Symbol,T}) where {T}
     val = assignment[e.symbol]
     val in e.predicate
 end
+(e::SolvedEvent)(x) = x in e.predicate
 
 struct UnsolvedEvent{T<:SPPLSet} <: Event
     symbol::Symbol
@@ -40,6 +41,7 @@ function preimage(e::SolvedEvent, b)
     end
     return e.symbol => EMPTY_SET
 end
+
 function preimage(e::UnsolvedEvent, b)
     # if b == 0
     #     return

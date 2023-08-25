@@ -39,6 +39,12 @@ end
 
 function test_union()
     @test EMPTY_SET ∪ (1 .. 5) == 1 .. 5
+
+    @test FiniteNominal("a") ∪ FiniteNominal("b") == FiniteNominal("a", "b")
+    @test FiniteNominal("a"; b=false) ∪ FiniteNominal("b"; b=false) ==
+          FiniteNominal("a", "b"; b=false)
+    @test FiniteNominal("a") ∪ FiniteNominal("b"; b=false) == 0
+
     @test (-Inf .. Inf) ∪ (1 .. 5) == -Inf .. Inf
     @test (-1 .. 1) ∪ (-2 .. 2) == -2 .. 2
     @test (0 .. 2) ∪ (1 .. 3) == (0 .. 3)
