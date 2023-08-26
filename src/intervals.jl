@@ -1,257 +1,228 @@
 import Base.union, Base.intersect
+using Intervals: IntervalSet, :(..), Closed, Open
+import Intervals: Intervals
+using Logging
 
 abstract type SPPLSet end
 struct EmptySet <: SPPLSet end
-is_all(x::EmptySet) = false
 const EMPTY_SET = EmptySet()
 
 abstract type FiniteSet{T} <: SPPLSet end
-Base.:(==)(x::T, y::T) where {T<:FiniteSet} = x.members == y.members && x.b == y.b
 
-struct FiniteNominal{T} <: FiniteSet{T}
-    members::Set{T}
+struct FiniteNominal <: FiniteSet{String}
+    members::Set{String}
     b::Bool
-    FiniteNominal{T}(members::Set{T}, b) where {T} = (length(members) == 0) ? EMPTY_SET : new{T}(members, b)
-    FiniteNominal(members::Set{T}, b) where {T} = (length(members) == 0) ? EMPTY_SET : new{T}(members, b)
+    function FiniteNominal(members::Set{String}, b::Bool)
+        if length(members) == 0 && b
+            return EMPTY_SET
+        end
+        new(members, b)
+    end
 end
-FiniteNominal(x...; b=true) = FiniteNominal(Set(x), b)
-
+function FiniteNominal(x...; b=true)
+    if length(x) == 0
+        return FiniteNominal(Set{String}(), b)
+    end
+    FiniteNominal(Set(x), b)
+end
 struct FiniteReal{T<:Real} <: FiniteSet{T}
     members::Set{T}
-    b::Bool
-    FiniteReal{T}(members::Set{T}, b) where {T} = (length(members) == 0) ? EMPTY_SET : new{T}(members, b)
-    FiniteReal(members::Set{T}, b) where {T} = (length(members) == 0) ? EMPTY_SET : new{T}(members, b)
 end
-FiniteReal(x::Real...; b=true) = FiniteReal(Set(x), b)
-# Base.isapprox(x::FiniteReal, y::FiniteReal) = 
+FiniteReal(x::Real...) = FiniteReal(Set(x))
 
 #############
 # Intervals
 #############
-abstract type Bound end
-abstract type Bounded <: Bound end
-struct Open <: Bounded end
-struct Closed <: Bounded end
-struct Unbounded <: Bound end
-Base.intersect(::Type{<:Bounded}, ::Type{Unbounded}) = Unbounded
-Base.intersect(::Type{Unbounded}, ::Type{<:Bounded}) = Unbounded
-Base.intersect(::Type{Closed}, ::Type{Open}) = Open
-Base.intersect(::Type{Open}, ::Type{Closed}) = Open
-Base.intersect(::Type{Closed}, ::Type{Closed}) = Closed
-Base.intersect(::Type{Open}, ::Type{Open}) = Open
-Base.intersect(::Type{Unbounded}, ::Type{Unbounded}) = Unbounded
-Base.union(::Type{<:Bounded}, ::Type{Unbounded}) = Unbounded
-Base.union(::Type{Unbounded}, ::Type{<:Bounded}) = Unbounded
-Base.union(::Type{Open}, ::Type{Open}) = Open
-Base.union(::Type{Closed}, ::Type{Open}) = Closed
-Base.union(::Type{Open}, ::Type{Closed}) = Closed
-Base.union(::Type{Closed}, ::Type{Closed}) = Closed
-opposite(::Type{Closed}) = Open
-opposite(::Type{Open}) = Closed
-
-struct Interval{L<:Bound,R<:Bound,T,U} <: SPPLSet
-    f::T
-    l::U
-    function Interval{L,R,T,U}(f::T, l::U) where {L,R,T,U}
-        !isfinite(f) && f == l && error("Error: Unbounded intervals must have different endpoints.")
-        ((isfinite(f) && L <: Unbounded) || (isfinite(l) && R <: Unbounded)) && error("Error: Finite ends cannot be unbounded.")
-        ((!isfinite(f) && L <: Bounded) || (!isfinite(l) && R <: Bounded)) && error("Error: Infinite endpoints must be unbounded")
-        if isfinite(f) && (f == l) && ((L != Closed) || (R != Closed))
+struct Interval{T} <: SPPLSet # Wrapper around Intervals.jl
+    interval::T
+    function Interval(interval::T) where {T<:IntervalSet}
+        if isempty(interval)
             return EMPTY_SET
         end
-        if l < f
-            return new{R,L,U,T}(l, f)
-        end
-        return new{L,R,T,U}(f, l)
+        new{T}(interval)
     end
 end
-function Interval(f::T, l::U) where {T,U}
-    L = isfinite(f) ? Closed : Unbounded
-    R = isfinite(l) ? Closed : Unbounded
-    Interval{L,R,T,U}(f, l)
-end
-Interval{L,R}(f::T, l::U) where {L,R,T,U} = Interval{L,R,T,U}(f, l)
-bounds_match(x::Interval{L,R}, y::Interval{A,B}) where {L,R,A,B} = (L == A && R == B)
-Base.:(==)(x::Interval, y::Interval) = x.f == y.f && x.l == y.l && bounds_match(x, y)
-Base.isapprox(x::Interval, y::Interval) = x.f ≈ y.f && x.l ≈ y.l && bounds_match(x, y)
-Base.first(x::Interval) = x.f
-Base.last(x::Interval) = x.l
-is_all(x::Interval) = !isfinite(first(x)) && !isfinite(last(x))
+Interval(x::Intervals.Interval) = Interval(IntervalSet(x))
+Base.show(io::IO, x::Interval) = print(io, x.interval)
+Base.:(==)(x::Interval, y::Interval) = x.interval == y.interval
 
 #############
 # Concat
 #############
-struct Concat{N,F,I} <: SPPLSet
-    nominals::N
-    singletons::F
-    intervals::I
-    function Concat(x...)
-        nominals = filter(v -> isa(v, FiniteNominal), x)
-        singletons = filter(v -> isa(v, FiniteReal), x)
-        intervals = filter(v -> isa(v, Interval), x)
-        nominals = length(nominals) == 0 ? nothing : nominals
-        singletons = length(singletons) == 0 ? nothing : singletons
-        intervals = length(intervals) == 0 ? nothing : intervals
-        new{typeof(nominals),typeof(singletons),typeof(intervals)}(nominals, singletons, intervals)
-    end
-    Concat(nominals::FiniteNominal...) = new{typeof(nominals),Nothing,Nothing}(nominals, nothing, nothing)
-    Concat(singletons::FiniteReal...) = new{Nothing,typeof(singletons),Nothing}(nothing, singletons, nothing)
-    Concat(intervals::Interval...) = new{Nothing,Nothing,typeof(intervals)}(nothing, nothing, intervals)
+struct Concat{T<:Union{EmptySet,FiniteNominal},U<:Union{EmptySet,FiniteReal},V<:Union{EmptySet,Interval}} <: SPPLSet
+    nominal::T
+    singleton::U
+    intervals::V
+    # function Concat(nominal::T, singleton::U, intervals::V) where {T,U,V}
+    # count = 0
+    # count += nominal == EMPTY_SET ? 0 : 1
+    # count += singleton == EMPTY_SET ? 0 : 1
+    # count += intervals == EMPTY_SET ? 0 : 1
+    # if count == 0
+    #     println("Hmmm")
+    # elseif count == 1
+    #     error("Concat should have two elements")
+    # end
+    # new{T,U,V}(nominal, singleton, intervals)
+    # end
 end
-# Base.:(==)(x::Concat, y::Concat) = x.nominals == y.nominals &&
-#                                    x.singletons == y.singletons && x.intervals == y.intervals
+function Base.show(io::IO, x::Concat)
+    print(io, "Concat($(x.nominal), $(x.singleton), $(x.intervals))")
+end
 
-# TODO: Consider multiple element versions of complement, union, intersection
+#############
+# Equality
+#############
+Base.:(==)(x::SPPLSet, y::SPPLSet) = false
+Base.:(==)(::EmptySet, ::EmptySet) = true
+Base.:(==)(x::FiniteNominal, y::FiniteNominal) = x.members == y.members && x.b == y.b
+Base.:(==)(x::FiniteReal, y::FiniteReal) = x.members == y.members
+Base.:(==)(x::Concat, y::Concat) = (x.nominal == y.nominal) && (x.singleton == y.singleton) && (x.intervals == y.intervals)
+
+##########
+# Invert
+##########
+# Not exactly complement, but convenient?
+invert(x::FiniteNominal) = FiniteNominal(copy(x.members), !x.b) # TODO: Slow?
+function invert(x::FiniteReal)
+    intervals = intersect(invert.(x.members)...)
+end
+function invert(x::Intervals.Interval{T,L,R}) where {T,L,R}
+    left = IntervalSet(Intervals.Interval{Closed,opposite(L)}(-Inf, first(x)))
+    right = IntervalSet(Intervals.Interval{opposite(R),Closed}(last(x), Inf))
+    int = union(left, right)
+    intersect(int, int)
+end
+function invert(x::Real)
+    left = Interval(Intervals.IntervalSet(Intervals.Interval{Closed,Open}(-Inf, x)))
+    right = Interval(Intervals.IntervalSet(Intervals.Interval{Open,Closed}(x, Inf)))
+    union(left, right)
+end
+function invert(x::IntervalSet{T}) where {T}
+    arr = convert(Array{T}, x)
+    new_arr = invert.(arr)
+    intersect(new_arr...)
+end
+function invert(x::Interval)
+    Interval(invert(x.interval))
+end
+
 #############
 # Complement
 #############
-complement(::EmptySet) = Interval(-Inf, Inf)
-complement(x::T) where {T<:FiniteSet} = T(copy(x.members), !x.b) # TODO: Slow?
-complement(x::Interval{Unbounded,Unbounded}) = EMPTY_SET
-function complement(x::Interval{L,R}) where {L,R}
-    left = isfinite(first(x)) ? Interval{Unbounded,opposite(L)}(-Inf, first(x)) : EMPTY_SET
-    right = isfinite(last(x)) ? Interval{opposite(R),Unbounded}(last(x), Inf) : EMPTY_SET
-    union(left, right)
+
+complement(::EmptySet) = Concat(FiniteNominal(; b=false), EMPTY_SET, Interval(-Inf .. Inf))
+complement(x::FiniteNominal) = Concat(invert(x), EMPTY_SET, IntervalSet([-Inf .. Inf]))
+complement(x::FiniteReal) = Concat(invert(x), EMPTY_SET, IntervalSet([-Inf .. Inf]))
+complement(x::Interval) = Concat(FiniteNominal(; b=false), EMPTY_SET, invert(x.interval))
+function complement(x::Concat)
+    set = x.nominal == EMPTY_SET ? FiniteNominal(Set{String}(); b=false) : invert(x.nominal)
+    if x.singleton == EMPTY_SET
+        return Concat(set, EMPTY_SET, invert(x.intervals))
+    elseif x.intervals == EMPTY_SET
+        return Concat(set, invert(x.singleton), EMPTY_SET)
+    end
+    union(set, intersect(x.singleton, x.intervals))
 end
-# complement(x::Concat) = union(complement(x.nominals), complement(x.singletons), complement(x.intervals))
 
 ###############
 # Intersection
 ###############
-Base.intersect(::EmptySet, ::SPPLSet) = EMPTY_SET
-Base.intersect(::SPPLSet, ::EmptySet) = EMPTY_SET
-Base.intersect(::EmptySet, ::EmptySet) = EMPTY_SET
-function Base.intersect(x::T, y::T) where {T<:FiniteSet}
-    !xor(x.b, y.b) && return T(intersect(x.members, y.members), x.b)
-    x.b && return T(Set(Iterators.filter(v -> v in y, x.members)), true) # TODO: Non-allocating version
-    return T(Set(Iterators.filter(v -> v in x, y.members)), true)
+Base.intersect(x::SPPLSet, y::SPPLSet) = intersect(y, x)
+Base.intersect(::EmptySet, y::SPPLSet) = EMPTY_SET
+function Base.intersect(x::FiniteNominal, y::FiniteNominal)
+    !xor(x.b, y.b) && return FiniteNominal(intersect(x.members, y.members), x.b)
+    x.b && return FiniteNominal(Set(Iterators.filter(v -> v in y, x.members)), true) # TODO: Non-allocating version
+    return FiniteNominal(Set(Iterators.filter(v -> v in x, y.members)), true)
 end
-function Base.intersect(x::T...) where {T<:FiniteSet}
-    yes = intersect([v.members for v in Iterators.filter(s -> s.b, x)]...)
-    no = intersect([v.members for v in Iterators.filter(s -> !s.b, x)]...)
-    return T(Set(Iterators.filter(v -> !(v in no), yes)), true)
+Base.intersect(::FiniteNominal, ::FiniteReal) = EMPTY_SET
+Base.intersect(::FiniteNominal, ::Interval) = EMPTY_SET
+Base.intersect(x::FiniteReal, y::FiniteReal) = FiniteReal(intersect(x.members, y.members))
+function Base.intersect(x::FiniteReal, y::Interval)
+    members = filter(v -> v in y, x.members)
+    return length(members) == 0 ? EMPTY_SET : FiniteReal(Set(members))
 end
-
-function Base.intersect(x::Interval{L,R}, y::Interval{T,U}) where {L,R,T,U} # TODO: Slow
-    is_all(x) && return y
-    is_all(y) && return x
-    if last(x) < first(y) || last(y) < first(x)
-        return EMPTY_SET
+Base.intersect(x::Interval, y::Interval) = Interval(intersect(x.interval, y.interval))
+Base.intersect(x::Concat, y::FiniteNominal) = intersect(x.nominal, y)
+Base.intersect(x::Concat, y::FiniteReal) = union(intersect(x.singleton, y), intersect(x.intervals, y))
+Base.intersect(x::Concat, y::Interval) = union(intersect(x.singleton, y), intersect(x.intervals, y))
+function Base.intersect(x::Concat, y::Concat)
+    nominals = intersect(x.nominal, y.nominal)
+    singleton = intersect(x.singleton, y.singleton)
+    intervals = intersect(x.intervals, y.intervals)
+end
+function Base.intersect(s::SPPLSet, itrs...)
+    ans = s
+    for x in itrs
+        ans = intersect(ans, x)
     end
-    start = max(first(x), first(y))
-    stop = min(last(x), last(y))
-    if start == first(x) && start == first(y)
-        left = intersect(L, T) # Refer to precedence above
-    elseif start == first(x) && start != first(y)
-        left = L
-    else
-        left = T
-    end
-
-    if stop == last(x) && stop == last(y)
-        right = intersect(R, U) # Refer to precedence above
-    elseif stop == last(x) && stop != last(y)
-        right = R
-    else
-        right = U
-    end
-    return Interval{left,right}(start, stop)
+    return ans
 end
 
 ##########
 # Union
 ##########
-Base.union(x::SPPLSet...) = Concat(x...)
+Base.union(y::SPPLSet, x::SPPLSet) = union(x, y)
 Base.union(::EmptySet, y::SPPLSet) = y
-Base.union(x::SPPLSet, ::EmptySet) = x
-Base.union(::EmptySet, ::EmptySet) = EMPTY_SET
-function Base.union(x::Interval{L,R}, y::Interval{T,U}) where {L,R,T,U}
-    (is_all(x) || is_all(y)) && return -Inf .. Inf
-    if last(x) < first(y) || last(y) < first(x) # Disjoint
-        return Concat(x, y)
-    elseif last(x) == first(y) && R == T == Open
-        return Concat(x, y)
-    elseif first(x) == last(y) && L == U == Open
-        return Concat(x, y)
+function Base.union(x::FiniteNominal, y::FiniteNominal)
+    if !x.b
+        members = filter(v -> !(v in y), x.members)
+        return FiniteNominal(Set(members), false)
+    elseif !y.b
+        members = filter(v -> !(v in x), y.members)
+        return FiniteNominal(Set(members), false)
     end
-    start = min(first(x), first(y))
-    stop = max(last(x), last(y))
-
-    if start == first(x) && start == first(y)
-        left = L ∪ T # Refer to precedence above
-    elseif start == first(x) && start != first(y)
-        left = L
-    else
-        left = T
-    end
-
-    if stop == last(x) && stop == last(y)
-        right = R ∪ U # Refer to precedence above
-    elseif stop == last(x) && stop != last(y)
-        right = R
-    else
-        right = U
-    end
-    return Interval{left,right}(start, stop)
+    FiniteNominal(union(x.members, y.members), true)
 end
-# function Base.union(x::Interval...)
-#     reduce(union, x)
-# end
-
-function Base.union(x::T, y::T) where {T<:FiniteSet}
-    !xor(x.b, y.b) && return T(union(x.members, y.members), x.b)
-    if x.b
-        return (x, T(Set(Iterators.filter(v -> !(v in x), y.members)), false))
-    end
-    return (y, T(Set(Iterators.filter(v -> !(v in y), x.members)), false))
+Base.union(x::FiniteReal, y::FiniteReal) = FiniteReal(union(x.members, y.members))
+Base.union(x::Interval, y::Interval) = Interval(union(x.interval, y.interval))
+Base.union(x::FiniteNominal, y::FiniteReal) = Concat(x, y, EMPTY_SET)
+Base.union(x::FiniteNominal, y::Interval) = Concat(x, EMPTY_SET, y)
+Base.union(x::FiniteReal, y::Interval) = error("Real + interval")
+Base.union(x::Concat, y::FiniteNominal) = Concat(union(x.nominal, y), x.singleton, x.intervals)
+# Base.union(x::Concat{T,EmptySet}, y::FiniteReal) where {T} = error("concat+real")
+Base.union(x::Concat, y::FiniteReal) = error("concat+real")
+Base.union(x::Concat, y::Interval) = error("concat + interval")
+function Base.union(x::Concat, y::Concat)
+    println("nominals")
+    println(x.nominal)
+    println(y.nominal)
+    nominal = union(x.nominal, y.nominal)
+    println(nominal)
+    singleton = union(x.singleton, y.singleton)
+    intervals = union(x.intervals, y.intervals)
+    Concat(nominal, singleton, intervals)
 end
 
-function Base.union(x::T...) where {T<:FiniteSet} # TODO: Reduce allocations
-    if length(x) == 1
-        return x[1]
+function union(s::SPPLSet, itrs...) # TODO: Slow?
+    ans = s
+    for x in itrs
+        ans = union(ans, x)
     end
-    yes = [v.members for v in filter(s -> s.b, x)]
-    no = [v.members for v in filter(s -> !s.b, x)]
-
-    if length(yes) == 0
-        A = EMPTY_SET
-    else
-        A = T(union(yes...), true)
-    end
-
-    if length(no) == 0
-        B = EMPTY_SET
-    else
-        B = T(Set(union(setdiff(no, yes)...)), false)
-    end
-    return union(A, B)
+    return ans
 end
-# TODO: Add macro to define the reverse?
-# function Base.union(x::Interval{L,R}, y::FiniteReal{T}) where {L,R,T<:Real}
-# end
 
 ##############
 # Containment
 ##############
-Base.in(x, S::SPPLSet) = false
+# TODO: Optimize. Use x's type.
 Base.in(x, ::EmptySet) = false
-Base.in(x, s::T) where {T<:FiniteSet} = !(xor(s.b, x in s.members))
-function Base.in(x::Real, int::Interval{L,R}) where {L,R}
-    (x > last(int) || (x == last(int) && R == Open)) && return false
-    (x < first(int) || (x == first(int) && L == Open)) && return false
-    return true
-end
-function Base.in(x, s::Concat)
-    nominal = s.nominals === nothing ? false : any(v -> x in v, s.nominals)
-    nominal && return true
-    singletons = s.singletons === nothing ? false : any(v -> x in v, s.singletons)
-    singletons && return true
-    intervals = s.intervals === nothing ? false : any(v -> x in v, s.intervals)
-    return intervals
-end
+Base.in(x, s::FiniteNominal) = !(xor(s.b, x in s.members))
+Base.in(x, s::FiniteReal) = (x in s.members)
+Base.in(x, s::Interval) = x in s.interval
+Base.in(x::AbstractString, s::Concat) = x in s.nominal
+Base.in(x::Real, s::Concat) = x in s.singleton || x in s.intervals
+
+Base.isempty(S::EmptySet) = true
+Base.isempty(S::FiniteSet) = false
+Base.isempty(x::Interval) = isempty(x.interval)
+
 ##############
 # Convenience
 ##############
-..(x::Real, y::Real) = Interval(x, y)
-const ℝ = -Inf .. Inf
-export FiniteNominal, FiniteReal, Interval, Concat, Open, Closed, Unbounded, complement, ℝ
+# const ℝ = -Inf .. Inf
+
+opposite(::Type{Closed}) = Open
+opposite(::Type{Open}) = Closed
+export EMPTY_SET, FiniteNominal, FiniteReal, Interval, Concat
+export complement, invert

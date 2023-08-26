@@ -3,7 +3,7 @@ abstract type Event end
 abstract type BasicEvent <: Event end
 (e::Event)(assignment::Dict) = assignment in e
 
-struct SolvedEvent{T<:SPPLSet} <: BasicEvent
+struct SolvedEvent{T} <: BasicEvent
     symbol::Symbol
     predicate::T
 end
@@ -13,7 +13,7 @@ function Base.in(assignment::Dict{Symbol,T}, e::SolvedEvent) where {T}
     assignment[e.symbol] in e.predicate
 end
 
-struct UnsolvedEvent{T<:SPPLSet} <: BasicEvent
+struct UnsolvedEvent{T} <: BasicEvent
     symbol::Symbol
     predicate::T
     transform
@@ -35,25 +35,46 @@ Base.in(assignment::Dict{Symbol,T}, e::OrEvent) where {T} = any(x -> x(assignmen
 #############
 # Inversion
 #############
-function preimage(e::SolvedEvent, b)
-    if b == 0
-        # println(e.predicate)
-        return e.symbol => complement(e.predicate)
-    elseif b == 1
-        return e.symbol => e.predicate
-    end
-    return e.symbol => EMPTY_SET
+function preimage(e::SolvedEvent, b::Bool)
+    b && return Dict(e.symbol => e.predicate)
+    return Dict(e.symbol => complement(e.predicate))
 end
 
-function preimage(e::UnsolvedEvent, b)
+function preimage(e::UnsolvedEvent, b::Bool)
     I = preimage(e.transform, b == 0 ? complement(e.predicate) : e.predicate)
-    return e.symbol => I
+    return Dict(e.symbol => I)
 end
 
-function preimage(e::AndEvent, b)
+function preimage(e::AndEvent, b::Bool)
     regions = preimage.(e.events, Ref(b))
-    print(regions)
+    assignment = Dict{Symbol,Vector}()
+    for r in regions
+        for (symbol, event) in r
+            if !(symbol in keys(assignment))
+                assignment[symbol] = SPPLSet[]
+            end
+            push!(assignment[symbol], event)
+        end
+    end
+    Dict(key => intersect(value...) for (key, value) in assignment)
 end
+
+
+function preimage(e::OrEvent, b::Bool)
+    regions = preimage.(e.events, Ref(b))
+    assignment = Dict{Symbol,Vector}()
+    for r in regions
+        for (symbol, event) in r
+            if !(symbol in keys(assignment))
+                assignment[symbol] = SPPLSet[]
+            end
+            push!(assignment[symbol], event)
+        end
+    end
+    display(assignment[:x])
+    Dict(key => union(value...) for (key, value) in assignment)
+end
+
 ##################
 # Normalization
 ##################
@@ -71,4 +92,5 @@ end
 
 function dnf_to_disjoint_union(event)
 end
+
 export AndEvent, OrEvent, SolvedEvent, UnsolvedEvent
