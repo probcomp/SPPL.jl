@@ -283,11 +283,6 @@ function constraint(spe::SPE, event::Event) end
 ###############
 # Convenience
 ###############
-# function Base.show(io::IO, spe::T) where {T}
-#     print(io, "$(T.name)(")
-#     print(io, "$(spe.symbol), $(spe.dist), $(spe.support) )
-#     print(io, ")")
-# end
 function Base.show(io::IO, spe::NominalLeaf)
     print(io, "NominalLeaf(")
     print(io, "$(spe.symbol), $(probs(spe.dist)), $(spe.outcomes)")

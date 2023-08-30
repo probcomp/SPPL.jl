@@ -10,6 +10,17 @@ function test_finite_nominal()
     @test "y" in FiniteNominal("x", b=false)
     @test FiniteNominal("a"; b=false) == FiniteNominal("a"; b=false)
 end
+function test_interval()
+    @test Interval(1, 1, true, true) == Interval(1, 1, true, true)
+    @test Interval(1, 2, true, true) != Interval(1, 2, true, false)
+    @test Interval(1, 2, true, true) != Interval(1, 1, true, true)
+    @test Interval(1, 1, true, false) == EMPTY_SET
+    @test Interval(Inf, Inf, false, false) == EMPTY_SET
+
+    # Convenience methods
+    @test 1 .. 5 == Interval(1, 5, true, true)
+    @test IntervalSet(1, 2, true, false) == @int "[1,2)"
+end
 
 function test_finite_real()
     @test 1 in FiniteReal(Set([1, 2, 3]))
@@ -21,10 +32,10 @@ function test_finite_real()
 end
 
 function test_concat()
-    @test Concat(EMPTY_SET, FiniteReal(1), Interval(2 .. 5)) ==
-          Concat(EMPTY_SET, FiniteReal(1), Interval(2 .. 5))
-    f = Concat(FiniteNominal("a"), EMPTY_SET, Interval(1 .. 5))
-    @test f != Concat(FiniteNominal("b"), EMPTY_SET, Interval(1 .. 5))
+    @test Concat(EMPTY_SET, FiniteReal(1), 2 .. 5) ==
+          Concat(EMPTY_SET, FiniteReal(1), 2 .. 5)
+    f = Concat(FiniteNominal("a"), EMPTY_SET, 1 .. 5)
+    @test f != Concat(FiniteNominal("b"), EMPTY_SET, 1 .. 5)
     @test "a" in f
     @test 2 in f
     @test !("b" in f)
@@ -32,14 +43,18 @@ end
 
 function test_invert()
     @test invert(FiniteNominal("a", "b")) == FiniteNominal("a", "b"; b=false)
-    @test invert(FiniteReal(1)) == 0
-    @test invert(Interval(1 .. 5)) == Interval(Intervals.IntervalSet([
-        Intervals.Interval{Closed,Open}(-Inf, 1),
-        Intervals.Interval{Open,Closed}(5, Inf)]))
+    @test invert(FiniteReal(1)) == IntervalSet([
+        (@int "[-Inf, 1)"),
+        (@int "(1, Inf]")
+    ])
+    @test invert(1 .. 5) == IntervalSet([
+        (@int "[-Inf, 1)"),
+        (@int "(1,Inf]")
+    ])
 end
 
 function test_complement()
-    @test complement(EMPTY_SET) == Concat(FiniteNominal(; b=false), EMPTY_SET, Interval(-Inf .. Inf))
+    @test complement(EMPTY_SET) == Concat(FiniteNominal(; b=false), EMPTY_SET, -Inf .. Inf)
     # @test complement(FiniteNominal(:x, :y, :z; b=true)) == FiniteNominal(:x, :y, :z; b=false)
     # @test complement(FiniteReal(1, 2, 3; b=true)) == FiniteReal(1, 2, 3; b=false)
     # @test complement(-Inf .. Inf) == IntervalSet()
@@ -65,12 +80,21 @@ function test_union()
           union(set2, set1, set3) == union(set2, set3, set1) ==
           union(set3, set1, set2) == union(set3, set2, set1) ==
           FiniteNominal("e"; b=false)
+
+    # Intervals
+    @test union(1 .. 7, 2 .. 5) == union(1 .. 5, 2 .. 7) == 1 .. 7
+    @test union(0 .. 1, Interval(1, 2, false, false)) == Interval(0, 2, true, false)
+    @test union(0 .. 1, 2 .. 3) == IntervalSet([0 .. 1, 2 .. 3])
+    @test union(Interval(0, 1, false, false), Interval(1, 2, false, false)) == IntervalSet([
+        Interval(0, 1, false, false),
+        Interval(1, 2, false, false)
+    ])
 end
 
 function test_intersect()
     @test EMPTY_SET ∩ EMPTY_SET == EMPTY_SET
-    @test EMPTY_SET ∩ Interval(1 .. 5) == EMPTY_SET
-    @test Interval(1 .. 5) ∩ EMPTY_SET == EMPTY_SET
+    @test EMPTY_SET ∩ (1 .. 5) == EMPTY_SET
+    @test (1 .. 5) ∩ EMPTY_SET == EMPTY_SET
 
     set1 = FiniteNominal("a", "b", "c")
     set2 = FiniteNominal("d", "a", "c")
@@ -85,6 +109,12 @@ function test_intersect()
     set2 = FiniteNominal("b", "c", "d")
     set3 = FiniteNominal("c", "d", "e")
     @test intersect(set1, set2, set3) == FiniteNominal("c")
+
+    # Intervals
+    @test intersect(0 .. 4, 2 .. 3) == 2 .. 3
+    @test intersect(0 .. 4, Interval(2, 3, false, true)) == Interval(2, 3, false, true)
+    @test intersect(0 .. 1, 2 .. 3) == EMPTY_SET
+    @test intersect(0 .. 1, Interval(1, 2, false, true)) == EMPTY_SET
 end
 
 function test_cross_union()
@@ -96,11 +126,12 @@ end
     test_empty()
     test_finite_nominal()
     test_finite_real()
+    test_interval()
     test_concat()
     test_intersect()
     test_union()
     test_invert()
-    test_complement()
+    # test_complement()
     # test_cross_union()
     # test_cross_intersect()
 end

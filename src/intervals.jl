@@ -1,6 +1,5 @@
 import Base.union, Base.intersect
 using OrderedCollections
-using Intervals: Closed, Open
 import Intervals: Intervals
 using Logging
 
@@ -13,7 +12,7 @@ abstract type FiniteSet{T} <: SPPLSet end
 struct FiniteNominal <: FiniteSet{String}
     members::OrderedSet{String}
     b::Bool
-    function FiniteNominal(members::OrderedSet{String}, b::Bool)
+    function FiniteNominal(members::AbstractSet{String}, b::Bool)
         if length(members) == 0 && b
             return EMPTY_SET
         end
@@ -26,6 +25,8 @@ function FiniteNominal(x...; b=true)
     end
     FiniteNominal(OrderedSet(x), b)
 end
+const NOM = FiniteNominal(Set{String}(), false)
+
 struct FiniteReal{T<:Real} <: FiniteSet{T}
     members::Set{T}
 end
@@ -35,59 +36,47 @@ FiniteReal(x::Real...) = FiniteReal(Set(x))
 # Intervals
 #############
 abstract type Range <: SPPLSet end
-struct Interval{T,U} <: Range # Wrapper around Intervals.jl
+struct Interval{T} <: Range # Wrapper around Intervals.jl
     a::T
     b::T
     left::Bool
     right::Bool
-    interval::U
-    function Interval(interval::Intervals.Interval{T,L,R}) where {T,L,R}
-        if isempty(interval)
+    function Interval(a::T, b::U, left::Bool, right::Bool) where {T,U}
+        if a == b && (!left || !right)
             return EMPTY_SET
         end
-        left = L == Closed
-        right = R == Closed
-        new{T,typeof(interval)}(first(interval), last(interval), left, right, interval)
-    end
-    function Interval(a::T, b::T, left::Bool, right::Bool) where {T}
-        L = left ? Closed : Open
-        R = right ? Closed : Open
-        interval = Intervals.Interval{L,R}(a, b)
-        Interval(interval)
+        a, b = promote(a, b)
+        b < a && return new{T}(b, a, right, left)
+        return new{typeof(a)}(a, b, left, right)
     end
 end
-Base.show(io::IO, x::Interval) = print(io, x.interval)
-Base.:(==)(x::Interval, y::Interval) = x.interval == y.interval
-Base.first(x::Interval) = first(x.interval)
-Base.last(x::Interval) = last(x.interval)
+Base.first(x::Interval) = x.a
+Base.last(x::Interval) = x.b
 
 struct IntervalSet{T} <: Range
-
+    intervals::Vector{T}
 end
+
+IntervalSet(x::Interval) = x
+function IntervalSet(x::Interval, itr...)
+    intervals = collect(itr)
+    pushfirst!(intervals, x)
+    IntervalSet(intervals)
+end
+IntervalSet(a::Real, b::Real, left::Bool=true, right::Bool=true) = IntervalSet(Interval(a, b, left, right))
 
 #############
 # Concat
 #############
-struct Concat{T<:Union{EmptySet,FiniteNominal},U<:Union{EmptySet,FiniteReal},V<:Union{EmptySet,Interval,IntervalSet}} <: SPPLSet
+struct Concat{T<:Union{EmptySet,FiniteNominal},U<:Union{EmptySet,FiniteReal},V<:Union{EmptySet,Range}} <: SPPLSet
     nominal::T
     singleton::U
     intervals::V
-    # function Concat(nominal::T, singleton::U, intervals::V) where {T,U,V}
-    # count = 0
-    # count += nominal == EMPTY_SET ? 0 : 1
-    # count += singleton == EMPTY_SET ? 0 : 1
-    # count += intervals == EMPTY_SET ? 0 : 1
-    # if count == 0
-    #     println("Hmmm")
-    # elseif count == 1
-    #     error("Concat should have two elements")
-    # end
-    # new{T,U,V}(nominal, singleton, intervals)
-    # end
 end
-function Base.show(io::IO, x::Concat)
-    print(io, "Concat($(x.nominal), $(x.singleton), $(x.intervals))")
-end
+Concat(::EmptySet, ::EmptySet, ::EmptySet) = EMPTY_SET
+Concat(y::FiniteNominal, ::EmptySet, ::EmptySet) = y
+Concat(::EmptySet, ::EmptySet, y::Range) = y
+Concat(::EmptySet, y::FiniteReal, ::EmptySet) = y
 
 #############
 # Equality
@@ -96,6 +85,8 @@ Base.:(==)(x::SPPLSet, y::SPPLSet) = false
 Base.:(==)(::EmptySet, ::EmptySet) = true
 Base.:(==)(x::FiniteNominal, y::FiniteNominal) = x.members == y.members && x.b == y.b
 Base.:(==)(x::FiniteReal, y::FiniteReal) = x.members == y.members
+Base.:(==)(x::Interval, y::Interval) = x.a == y.a && x.b == y.b && (x.left == y.left) && (x.right == y.right)
+Base.:(==)(x::IntervalSet, y::IntervalSet) = error("not yet implemented")
 Base.:(==)(x::Concat, y::Concat) = (x.nominal == y.nominal) && (x.singleton == y.singleton) && (x.intervals == y.intervals)
 
 ##########
@@ -103,45 +94,49 @@ Base.:(==)(x::Concat, y::Concat) = (x.nominal == y.nominal) && (x.singleton == y
 ##########
 # Not exactly complement, but convenient?
 invert(x::FiniteNominal) = FiniteNominal(copy(x.members), !x.b) # TODO: Slow?
-function invert(x::FiniteReal)
-    intervals = intersect(invert.(x.members)...)
-end
-function invert(x::Intervals.Interval{T,L,R}) where {T,L,R}
-    left = IntervalSet(Intervals.Interval{Closed,opposite(L)}(-Inf, first(x)))
-    right = IntervalSet(Intervals.Interval{opposite(R),Closed}(last(x), Inf))
-    int = union(left, right)
-    intersect(int, int)
-end
+invert(x::FiniteReal) = intersect(invert.(x.members)...)
 function invert(x::Real)
-    left = Interval(Intervals.IntervalSet(Intervals.Interval{Closed,Open}(-Inf, x)))
-    right = Interval(Intervals.IntervalSet(Intervals.Interval{Open,Closed}(x, Inf)))
-    union(left, right)
-end
-function invert(x::IntervalSet{T}) where {T}
-    arr = convert(Array{T}, x)
-    new_arr = invert.(arr)
-    intersect(new_arr...)
+    left = Interval(-Inf, x, true, false)
+    right = Interval(x, Inf, false, true)
+    IntervalSet([left, right])
 end
 function invert(x::Interval)
-    Interval(invert(x.interval))
+    left = Interval(-Inf, first(x), true, !x.left)
+    right = Interval(last(x), Inf, !x.right, true)
+    disjoint_union(left, right)
 end
+function invert(x::IntervalSet)
+    error("Not yet implemented")
+    # intervals = x.intervals
+    # new_intervals = Vector{Interval{Float64}}(undef, length(intervals) + 1)
+    # new_intervals[1] = Interval(-Inf, first(intervals[1]), true, !intervals[1].left)
+    # for i = 1:length(intervals)-1
+    #     a = last(intervals[i])
+    #     b = first(intervals[i+1])
+    #     left = !intervals[i].right
+    #     right = !intervals[i+1].left
+    #     new_intervals[i+1] = Interval(a, b, left, right)
+    # end
+    # new_intervals[end] = Interval(last(intervals[end]), Inf, !intervals[end].right, true)
+    # new_intervals
+end
+convert(::Type{Interval{Float64}}, x::Interval) = Interval(convert(Float64, first(x)), convert(Float64, last(x)), x.left, x.right)
 
 #############
 # Complement
 #############
 
-complement(::EmptySet) = Concat(FiniteNominal(; b=false), EMPTY_SET, Interval(Interval{Closed,Closed}(-Inf, Inf)))
-complement(x::FiniteNominal) = Concat(invert(x), EMPTY_SET, IntervalSet(Interval{Closed,Closed}(-Inf, Inf)))
-complement(x::FiniteReal) = Concat(invert(x), EMPTY_SET, IntervalSet(Interval{Closed,Cloesd}(-Inf, Inf)))
-complement(x::Interval) = Concat(FiniteNominal(; b=false), EMPTY_SET, invert(x.interval))
-function complement(x::Concat)
-    set = x.nominal == EMPTY_SET ? FiniteNominal(OrderedSet{String}(); b=false) : invert(x.nominal)
-    if x.singleton == EMPTY_SET
-        return Concat(set, EMPTY_SET, invert(x.intervals))
-    elseif x.intervals == EMPTY_SET
-        return Concat(set, invert(x.singleton), EMPTY_SET)
-    end
-    union(set, intersect(x.singleton, x.intervals))
+complement(::EmptySet) = Concat(NOM, EMPTY_SET, -Inf .. Inf)
+complement(x::FiniteNominal) = Concat(invert(x), EMPTY_SET, -Inf .. Inf)
+complement(x::FiniteReal) = Concat(NOM, EMPTY_SET, invert(x))
+complement(x::Interval) = Concat(NOM, EMPTY_SET, invert(x))
+complement(x::IntervalSet) = Concat(NOM, invert(x)...)
+function complement(x::Concat{T,EmptySet,U}) where {T,U}
+    error("Not yet implemented")
+    # Concat(invert(x.nominal))
+end
+function complement(x::Concat{T,U,EmptySet}) where {T,U}
+    error("Not yet implemented")
 end
 
 ###############
@@ -157,18 +152,73 @@ end
 Base.intersect(::FiniteNominal, ::FiniteReal) = EMPTY_SET
 Base.intersect(::FiniteNominal, ::Interval) = EMPTY_SET
 Base.intersect(x::FiniteReal, y::FiniteReal) = FiniteReal(intersect(x.members, y.members))
-function Base.intersect(x::FiniteReal, y::Interval)
+function Base.intersect(x::FiniteReal, y::Range)
     members = filter(v -> v in y, x.members)
     return length(members) == 0 ? EMPTY_SET : FiniteReal(Set(members))
 end
-Base.intersect(x::Interval, y::Interval) = Interval(intersect(x.interval, y.interval))
+function Base.intersect(x::Interval, y::Interval)
+    is_disjoint(x, y) && return EMPTY_SET
+    start = max(first(x), first(y))
+    stop = min(last(x), last(y))
+    if first(x) == start && first(y) == start
+        left = x.left && y.left
+    elseif first(x) == start
+        left = x.left
+    else
+        left = y.left
+    end
+
+    if last(x) == stop && last(y) == stop
+        right = x.right && y.right
+    elseif last(x) == stop
+        right = x.right
+    else
+        right = y.right
+    end
+
+    Interval(start, stop, left, right)
+end
+function Base.intersect(x::Interval, y::IntervalSet)
+    intervals = copy(y.intervals)
+    start = -1
+    for (i, int) in enumerate(intervals)
+        if !is_disjoint(x, int)
+            start = i
+            break
+        end
+    end
+    stop = -1
+    for i = length(intervals):-1:1
+        if !is_disjoint(x, intervals[i])
+            stop = i
+            break
+        end
+    end
+
+    start == -1 && return EMPTY_SET
+
+    intervals = intervals[start:stop]
+    intervals[1] = intersect(x, intervals[1])
+    intervals[end] = intersect(x, intervals[end])
+
+    if length(intervals) == 1
+        return intervals[1]
+    end
+    return IntervalSet(intervals)
+end
+function Base.intersect(x::IntervalSet, y::IntervalSet)
+    intervals = copy(x.intervals)
+    ints = intersect.(intervals, Ref(y))
+    union(ints...)
+end
 Base.intersect(x::Concat, y::FiniteNominal) = intersect(x.nominal, y)
 Base.intersect(x::Concat, y::FiniteReal) = union(intersect(x.singleton, y), intersect(x.intervals, y))
-Base.intersect(x::Concat, y::Interval) = union(intersect(x.singleton, y), intersect(x.intervals, y))
+Base.intersect(x::Concat, y::Range) = union(intersect(x.singleton, y), intersect(x.intervals, y))
 function Base.intersect(x::Concat, y::Concat)
     nominals = intersect(x.nominal, y.nominal)
     singleton = intersect(x.singleton, y.singleton)
     intervals = intersect(x.intervals, y.intervals)
+    Concat(nominals, singleton, intervals)
 end
 function Base.intersect(s::SPPLSet, itrs...)
     ans = s
@@ -181,6 +231,18 @@ end
 ##########
 # Union
 ##########
+@inline function is_disjoint(x::Interval, y::Interval)
+    return (last(x) < first(y) || last(y) < first(x)) ||
+           (last(x) == first(y) && (!x.right || !y.left)) ||
+           (last(y) == first(x) && (!y.right || !x.left))
+end
+@inline function disjoint_union(x::Interval, y::Interval)
+    first(x) < first(y) && return IntervalSet([x, y])
+    return IntervalSet([y, x])
+end
+disjoint_union(::EmptySet, y::Interval) = y
+disjoint_union(y::Interval,::EmptySet) = y
+
 Base.union(y::SPPLSet, x::SPPLSet) = union(x, y)
 Base.union(::EmptySet, y::SPPLSet) = y
 function Base.union(x::FiniteNominal, y::FiniteNominal)
@@ -193,27 +255,98 @@ function Base.union(x::FiniteNominal, y::FiniteNominal)
     end
     FiniteNominal(union(x.members, y.members), true)
 end
-Base.union(x::FiniteReal, y::FiniteReal) = FiniteReal(union(x.members, y.members))
-Base.union(x::Interval, y::Interval) = Interval(union(x.interval, y.interval))
 Base.union(x::FiniteNominal, y::FiniteReal) = Concat(x, y, EMPTY_SET)
-Base.union(x::FiniteNominal, y::Interval) = Concat(x, EMPTY_SET, y)
-Base.union(x::FiniteReal, y::Interval) = error("Real + interval")
+Base.union(x::FiniteNominal, y::Range) = Concat(x, EMPTY_SET, y)
+Base.union(x::FiniteReal, y::FiniteReal) = FiniteReal(union(x.members, y.members))
+Base.union(x::FiniteReal, y::Range) = Concat(EMPTY_SET, x, y)
+
+touch(x::Interval, y::Interval) = !(last(x) < first(y) || last(y) < first(x) ||
+                                    (last(x) == first(y) && !x.right && !y.left) || (last(y) == first(x) && !y.right && !x.left))
+function Base.union(x::Interval, y::Interval)
+    !touch(x, y) && return disjoint_union(x, y)
+    if first(x) < first(y)
+        start = first(x)
+        left = x.left
+    elseif first(y) < first(x)
+        start = first(y)
+        left = y.left
+    else
+        start = first(x)
+        left = x.left || y.left
+    end
+
+    if last(x) > last(y)
+        stop = last(x)
+        right = x.right
+    elseif last(y) > last(x)
+        stop = last(y)
+        right = y.right
+    else
+        stop = last(x)
+        right = x.right || y.right
+    end
+    Interval(start, stop, left, right)
+end
+
+function Base.union(x::Interval, y::IntervalSet)
+    intervals = copy(y.intervals)
+    start = -1
+    for (i, int) in enumerate(intervals)
+        if touch(x, int)
+            start = i
+            break
+        end
+    end
+    stop = -1
+    for i = length(intervals):-1:1
+        if touch(x, intervals[i])
+            stop = i
+            break
+        end
+    end
+    if start == -1
+        if last(x) <= first(intervals[1])
+            pushfirst!(intervals, x)
+        elseif first(x) >= last(intervals[end])
+            push!(intervals, x)
+        else
+            for i = 1:length(intervals)-1
+                if last(intervals[i]) <= first(x) <= last(x) <= first(intervals[i+1])
+                    insert!(intervals, i + 1, x)
+                end
+            end
+        end
+    else
+        A = union(intervals[start], x)
+        int = union(intervals[stop], A)
+        splice!(intervals, start:stop, [int])
+    end
+
+    if length(intervals) == 1
+        return intervals[1]
+    end
+    return IntervalSet(intervals)
+end
+
+function Base.union(x::IntervalSet, y::IntervalSet) # TODO: Slow
+    intervals = IntervalSet(copy(x.intervals))
+    for int in y.intervals
+        intervals = union(int, intervals)
+    end
+    return intervals
+end
+
 Base.union(x::Concat, y::FiniteNominal) = Concat(union(x.nominal, y), x.singleton, x.intervals)
-# Base.union(x::Concat{T,EmptySet}, y::FiniteReal) where {T} = error("concat+real")
-Base.union(x::Concat, y::FiniteReal) = error("concat+real")
-Base.union(x::Concat, y::Interval) = error("concat + interval")
+Base.union(x::Concat, y::FiniteReal) = Concat(x.nominal, union(x.singleton, y), x.intervals)
+Base.union(x::Concat, y::Range) = Concat(x.nominal, x.singleton, union(x.intervals, y))
 function Base.union(x::Concat, y::Concat)
-    println("nominals")
-    println(x.nominal)
-    println(y.nominal)
     nominal = union(x.nominal, y.nominal)
-    println(nominal)
     singleton = union(x.singleton, y.singleton)
     intervals = union(x.intervals, y.intervals)
     Concat(nominal, singleton, intervals)
 end
 
-function union(s::SPPLSet, itrs...) # TODO: Slow?
+function Base.union(s::SPPLSet, itrs...) # TODO: Slow?
     ans = s
     for x in itrs
         ans = union(ans, x)
@@ -228,21 +361,85 @@ end
 Base.in(x, ::EmptySet) = false
 Base.in(x, s::FiniteNominal) = !(xor(s.b, x in s.members))
 Base.in(x, s::FiniteReal) = (x in s.members)
-Base.in(x, s::Interval) = x in s.interval
-Base.in(x::AbstractString, s::Concat) = x in s.nominal
+Base.in(x, s::Interval) = false
+Base.in(x::Real, s::Interval) = !((x < first(s) || (first(s) == x && !s.left)) || (x > last(s) || (last(s) == x && !s.right)))
+Base.in(x, s::IntervalSet) = false
+Base.in(x::Real, s::IntervalSet) = any(v -> x in v, s.intervals)
+Base.in(x, s::Concat) = x in s.nominal
 Base.in(x::Real, s::Concat) = x in s.singleton || x in s.intervals
 
 Base.isempty(S::EmptySet) = true
 Base.isempty(S::FiniteSet) = false
-Base.isempty(x::Interval) = isempty(x.interval)
+Base.isempty(x::Interval) = false
+Base.isempty(x::IntervalSet) = false
+Base.isempty(x::Concat) = false
 
+########
+# Show
+########
+Base.show(io::IO, ::MIME"text/plain",::EmptySet) = print(io, "∅")
+Base.show(io::IO, ::MIME"text/plain", x::FiniteReal) = print(io, x.members)
+Base.show(io::IO,::MIME"text/plain", x::Concat) = print(io, "Concat($(x.nominal), $(x.singleton), $(x.intervals))")
+function Base.show(io::IO,::MIME"text/plain", x::Interval)
+    print(io, x.left ? "[" : "(")
+    print(io, "$(first(x)), $(last(x))")
+    print(io, x.right ? "]" : ")")
+end
+function Base.show(io::IO, m::MIME"text/plain", x::IntervalSet{T}) where {T}
+    print(io, "{ ")
+    for i=1:length(x.intervals)
+        show(io, m, x.intervals[i])
+        if i < length(x.intervals)
+            print(io, ", ")
+        end
+    end
+    print(io, " }")
+end
 ##############
 # Convenience
 ##############
-..(a, b) = Interval(Intervals.Interval{Closed,Closed}(a, b))
+..(a, b) = Interval(a, b, true, true)
+
+function string_to_num(str::AbstractString)
+    parsed_int = tryparse(Int, str)
+    parsed_int !== nothing && return parsed_int
+
+    # Try parsing the string as a float
+    parsed_float = tryparse(Float64, str)
+    parsed_float !== nothing && return parsed_float
+
+    error("Cannot parse $(str)")
+end
+
+macro int(ex)
+    number = r""
+    pattern = r"([\[\(])(.*),(.*)([\)\]])"
+    m = match(pattern, ex)
+    left = true
+    if m[1] == "["
+        left = true
+    elseif m[1] == "("
+        left = false
+    else
+        error("Must be [ or (")
+    end
+
+    if m[4] == "]"
+        right = true
+    elseif m[4] == ")"
+        right = false
+    else
+        error("Must be ] or )")
+    end
+    a = string_to_num(m[2])
+    b = string_to_num(m[3])
+    if b < a
+        error("Macro: b < a. Must flip endpoints.")
+    end
+    a, b = promote(a, b)
+    Interval(a, b, left, right)
+end
 # const ℝ = -Inf .. Inf
 
-opposite(::Type{Closed}) = Open
-opposite(::Type{Open}) = Closed
-export EMPTY_SET, FiniteNominal, FiniteReal, Interval, Concat
-export complement, invert, ..
+export EMPTY_SET, FiniteNominal, FiniteReal, Interval, IntervalSet, Concat
+export complement, invert, .., @int, is_disjoint
