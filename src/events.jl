@@ -1,5 +1,12 @@
 abstract type Event end
 
+function solve(event::Event)
+    length(symbols(event)) > 1 && error("cannot solve multi-symbol event")
+    preimage(event, true)
+end
+function to_dnf(event::Event)
+
+end
 abstract type BasicEvent <: Event end
 (e::Event)(assignment::Dict) = assignment in e
 

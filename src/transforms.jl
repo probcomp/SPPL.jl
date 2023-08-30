@@ -1,3 +1,14 @@
+##############
+# Transforms
+##############
+# sub_expr + symbols
+
+#~~~ Functions~~~~#
+# get_symbols
+# domain
+# range
+# substitute
+# evaluate
 preimage(f, ::EmptySet) = EMPTY_SET
 preimage(f, y::FiniteNominal) = EMPTY_SET
 # function preimage(f, y::FiniteReal)
@@ -23,7 +34,7 @@ function preimage(::typeof(sqrt), y::Real)
     y < 0 && return EMPTY_SET
     FiniteReal(y^2)
 end
-# function preimage(::typeof(sqrt), y::Interval{T,L,R}) where {T,L,R}
+# function preimage(::typeof(sqrt), y::Interval)
 #     if last(y) < 0 || (last(y) == 0 && R == Open)
 #         return EMPTY_SET
 #     end
@@ -38,8 +49,8 @@ end
 # ##############
 # # Logarithm
 # ##############
-# preimage(::typeof(log), y::Real) = FiniteReal(exp(y))
-# preimage(::typeof(log), y::Interval) = IntervalSet(exp(first(y)) .. exp(last(y)))
+preimage(::typeof(log), y::Real) = FiniteReal(exp(y))
+preimage(::typeof(log), y::Interval) = exp(first(y)) .. exp(last(y))
 
 # ##################
 # # Absolute Value
@@ -84,4 +95,4 @@ end
 # # Polynomials
 # ###############
 
-# export preimage
+export preimage

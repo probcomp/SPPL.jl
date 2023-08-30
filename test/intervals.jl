@@ -37,6 +37,7 @@ function test_invert()
         Intervals.Interval{Closed,Open}(-Inf, 1),
         Intervals.Interval{Open,Closed}(5, Inf)]))
 end
+
 function test_complement()
     @test complement(EMPTY_SET) == Concat(FiniteNominal(; b=false), EMPTY_SET, Interval(-Inf .. Inf))
     # @test complement(FiniteNominal(:x, :y, :z; b=true)) == FiniteNominal(:x, :y, :z; b=false)
