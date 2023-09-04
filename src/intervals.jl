@@ -142,7 +142,7 @@ end
 ###############
 # Intersection
 ###############
-Base.intersect(x::SPPLSet, y::SPPLSet) = intersect(y, x)
+Base.intersect(x::SPPLSet, y::SPPLSet) = intersect(y, x) # Fallback method
 Base.intersect(::EmptySet, y::SPPLSet) = EMPTY_SET
 function Base.intersect(x::FiniteNominal, y::FiniteNominal)
     !xor(x.b, y.b) && return FiniteNominal(intersect(x.members, y.members), x.b)
@@ -241,9 +241,9 @@ end
     return IntervalSet([y, x])
 end
 disjoint_union(::EmptySet, y::Interval) = y
-disjoint_union(y::Interval,::EmptySet) = y
+disjoint_union(y::Interval, ::EmptySet) = y
 
-Base.union(y::SPPLSet, x::SPPLSet) = union(x, y)
+Base.union(y::SPPLSet, x::SPPLSet) = union(x, y) # Fallback method
 Base.union(::EmptySet, y::SPPLSet) = y
 function Base.union(x::FiniteNominal, y::FiniteNominal)
     if !x.b
@@ -377,17 +377,17 @@ Base.isempty(x::Concat) = false
 ########
 # Show
 ########
-Base.show(io::IO, ::MIME"text/plain",::EmptySet) = print(io, "∅")
+Base.show(io::IO, ::MIME"text/plain", ::EmptySet) = print(io, "∅")
 Base.show(io::IO, ::MIME"text/plain", x::FiniteReal) = print(io, x.members)
-Base.show(io::IO,::MIME"text/plain", x::Concat) = print(io, "Concat($(x.nominal), $(x.singleton), $(x.intervals))")
-function Base.show(io::IO,::MIME"text/plain", x::Interval)
+Base.show(io::IO, ::MIME"text/plain", x::Concat) = print(io, "Concat($(x.nominal), $(x.singleton), $(x.intervals))")
+function Base.show(io::IO, ::MIME"text/plain", x::Interval)
     print(io, x.left ? "[" : "(")
     print(io, "$(first(x)), $(last(x))")
     print(io, x.right ? "]" : ")")
 end
 function Base.show(io::IO, m::MIME"text/plain", x::IntervalSet{T}) where {T}
     print(io, "{ ")
-    for i=1:length(x.intervals)
+    for i = 1:length(x.intervals)
         show(io, m, x.intervals[i])
         if i < length(x.intervals)
             print(io, ", ")

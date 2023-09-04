@@ -37,11 +37,7 @@ preimage(::typeof(identity), y::Real) = FiniteReal(y)
 ###############
 # Composition
 ###############
-function preimage(f::ComposedFunction, y::Real)
-    z = preimage(f.outer, y)
-    return preimage(f.inner, z)
-end
-function preimage(f::ComposedFunction, y::SPPLSet)
+function preimage(f::ComposedFunction, y::Union{SPPLSet,Real})
     z = preimage(f.outer, y)
     return preimage(f.inner, z)
 end

@@ -55,7 +55,7 @@ function preimage(event::UnsolvedEvent, b::Bool)
     return Dict(event.symbol => I)
 end
 
-function preimage(e::AndEvent, b::Bool)
+function preimage(e::AndEvent, b::Bool) # Assumes DNF form?
     regions = preimage.(e.events, Ref(b))
     assignment = Dict{Symbol,Vector}()
     for r in regions
@@ -70,19 +70,8 @@ function preimage(e::AndEvent, b::Bool)
 end
 
 
-function preimage(e::OrEvent, b::Bool)
+function preimage(e::OrEvent, b::Bool) # Assumes DNF form
     regions = preimage.(e.events, Ref(b))
-    assignment = Dict{Symbol,Vector}()
-    for r in regions
-        for (symbol, event) in r
-            if !(symbol in keys(assignment))
-                assignment[symbol] = SPPLSet[]
-            end
-            push!(assignment[symbol], event)
-        end
-    end
-    display(assignment[:x])
-    Dict(key => union(value...) for (key, value) in assignment)
 end
 
 
@@ -108,24 +97,21 @@ end
 ##################
 # Normalization
 ##################
-# length(symbols(event)) > 1 && error("cannot solve multi-symbol event")
+
 solve(event::SolvedEvent) = event
 function solve(event::UnsolvedEvent)
     space = preimage(event, true)[event.symbol]
-    BasicEvent(event.symbol, space)
+    SolvedEvent(event.symbol, space)
 end
-dnf(event::BasicEvent) = event
+
+dnf(event::SolvedEvent) = event
+dnf(event::UnsolvedEvent) = solve(event)
 function dnf(event::AndEvent)
     reduce(distribute, dnf.(event.events))
 end
 function dnf(event::OrEvent)
     reduce(union, dnf.(event.events))
 end
-
-function dnf_factor(event)
-    error("Not yet implemented")
-end
-
 
 function dnf_non_disjoint_clauses(event)
     error("Not yet implemented")
