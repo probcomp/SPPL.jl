@@ -28,9 +28,13 @@ end
 const NOM = FiniteNominal(Set{String}(), false)
 
 struct FiniteReal{T<:Real} <: FiniteSet{T}
-    members::Set{T}
+    members::Vector{T}
 end
-FiniteReal(x::Real...) = FiniteReal(Set(x))
+function FiniteReal(x::Real...) 
+    vec = [x...]
+    sort!(vec)
+    FiniteReal(vec)
+end
 
 #############
 # Intervals
@@ -45,9 +49,9 @@ struct Interval{T} <: Range # Wrapper around Intervals.jl
         if a == b && (!left || !right)
             return EMPTY_SET
         end
-        a, b = promote(a, b)
-        b < a && return new{T}(b, a, right, left)
-        return new{typeof(a)}(a, b, left, right)
+        V = promote_type(T,U)
+        b < a && return new{V}(b, a, right, left)
+        return new{V}(a, b, left, right)
     end
 end
 Base.first(x::Interval) = x.a
@@ -55,15 +59,37 @@ Base.last(x::Interval) = x.b
 
 struct IntervalSet{T} <: Range
     intervals::Vector{T}
+    holes::UInt16
 end
 
 IntervalSet(x::Interval) = x
+# Convenience. Slow.
 function IntervalSet(x::Interval, itr...)
     intervals = collect(itr)
     pushfirst!(intervals, x)
+    # intervals = (x, itr...)
     IntervalSet(intervals)
 end
-IntervalSet(a::Real, b::Real, left::Bool=true, right::Bool=true) = IntervalSet(Interval(a, b, left, right))
+
+# Assumes intervals are disjoint
+function IntervalSet(intervals::Vector{Interval{T}}) where {T}
+    holes = UInt16(0)
+    for i = 1:length(intervals)-1
+        (last(intervals[i]) == first(intervals[i+1]) && !intervals[i].right && !intervals[i+1].left) && (holes += UInt16(1))
+    end
+    if first(intervals[1])==-Inf && !intervals[1].left
+        holes += UInt16(1)
+    end
+    if last(intervals[end])==Inf && !intervals[end].right
+        holes += UInt16(1)
+    end
+    IntervalSet(intervals, holes)
+end
+
+function coalesce(x::Vector{Interval{T}}) where {T}
+end
+
+# IntervalSet(a::Real, b::Real, left::Bool=true, right::Bool=true) = Interval(a, b, left, right)
 
 #############
 # Concat
@@ -92,23 +118,35 @@ Base.:(==)(x::Concat, y::Concat) = (x.nominal == y.nominal) && (x.singleton == y
 ##########
 # Invert
 ##########
-# Not exactly complement, but convenient?
-invert(x::FiniteNominal) = FiniteNominal(copy(x.members), !x.b) # TODO: Slow?
-invert(x::FiniteReal) = intersect(invert.(x.members)...)
+invert(x::FiniteNominal) = FiniteNominal(x.members, !x.b) # Ever need to copy x.members?
+function invert(x::FiniteReal) 
+    members = x.members
+    intervals = Vector{Interval{Float64}}(undef, length(members))
+    intervals[1] = Interval(-Inf, first(members), true, false)
+    intervals[end] = Interval(last(members), Inf, false, true)
+    for i=1:length(members)-1
+        intervals[i+1] = Interval(members[i], members[i+1], false, false)
+    end
+    IntervalSet(intervals)
+end
+
 function invert(x::Real)
     left = Interval(-Inf, x, true, false)
     right = Interval(x, Inf, false, true)
     IntervalSet([left, right])
 end
+
 function invert(x::Interval)
     left = Interval(-Inf, first(x), true, !x.left)
     right = Interval(last(x), Inf, !x.right, true)
     disjoint_union(left, right)
 end
 function invert(x::IntervalSet)
-    error("Not yet implemented")
-    # intervals = x.intervals
-    # new_intervals = Vector{Interval{Float64}}(undef, length(intervals) + 1)
+    intervals = x.intervals
+    new_intervals = Vector{Interval{Float64}}(undef, length(intervals)+1-x.holes)
+    singletons = Vector{Float64}(undef, x.holes)
+    i = 0
+    j = 0
     # new_intervals[1] = Interval(-Inf, first(intervals[1]), true, !intervals[1].left)
     # for i = 1:length(intervals)-1
     #     a = last(intervals[i])
@@ -120,7 +158,13 @@ function invert(x::IntervalSet)
     # new_intervals[end] = Interval(last(intervals[end]), Inf, !intervals[end].right, true)
     # new_intervals
 end
-convert(::Type{Interval{Float64}}, x::Interval) = Interval(convert(Float64, first(x)), convert(Float64, last(x)), x.left, x.right)
+function invert(x::FiniteReal, y::Interval)
+    error("Not yet implemented")
+end
+function invert(x::FiniteReal, y::IntervalSet)
+    error("Not yet implemented")
+end
+Base.convert(::Type{Interval{Float64}}, x::Interval{Int64}) = Interval(convert(Float64, x.a), convert(Float64, x.b), x.left, x.right)
 
 #############
 # Complement
@@ -132,11 +176,39 @@ complement(x::FiniteReal) = Concat(NOM, EMPTY_SET, invert(x))
 complement(x::Interval) = Concat(NOM, EMPTY_SET, invert(x))
 complement(x::IntervalSet) = Concat(NOM, invert(x)...)
 function complement(x::Concat{T,EmptySet,U}) where {T,U}
+    # nominal =invert(x.nominal)
+    # singleton, intervals = invert(x.intervals)
+    # Concat(nominal, singleton, intervals)
     error("Not yet implemented")
-    # Concat(invert(x.nominal))
 end
+
 function complement(x::Concat{T,U,EmptySet}) where {T,U}
-    error("Not yet implemented")
+    nominal = invert(x.nominal)
+    intervals = invert(x.singleton)
+    Concat(nominal, EMPTY_SET, intervals)
+end
+
+function complement(x::Concat{EmptySet, T,U}) where {T,U}
+    A = invert(x.singleton, x.intervals)
+    if A <: Range
+        return Concat(NOM, EMPTY_SET, A)
+    elseif A<:FiniteReal
+        return Concat(NOM, A, EMPTY_SET)
+    else
+        return Concat(NOM, A[1], A[2])
+    end
+end
+function complement(x::Concat)
+    nominals = invert(x.nominal)
+    A = invert(x.singleton, x.intervals)
+    if A <: Range
+        return Concat(nominals, EMPTY_SET, A)
+    elseif A<:FiniteReal
+        return Concat(nominals, A, EMPTY_SET)
+    else
+        return Concat(nominals, A[1], A[2])
+    end
+
 end
 
 ###############
@@ -154,7 +226,7 @@ Base.intersect(::FiniteNominal, ::Interval) = EMPTY_SET
 Base.intersect(x::FiniteReal, y::FiniteReal) = FiniteReal(intersect(x.members, y.members))
 function Base.intersect(x::FiniteReal, y::Range)
     members = filter(v -> v in y, x.members)
-    return length(members) == 0 ? EMPTY_SET : FiniteReal(Set(members))
+    return length(members) == 0 ? EMPTY_SET : FiniteReal(OrderedSet(members))
 end
 function Base.intersect(x::Interval, y::Interval)
     is_disjoint(x, y) && return EMPTY_SET
@@ -360,7 +432,7 @@ end
 # TODO: Optimize. Use x's type.
 Base.in(x, ::EmptySet) = false
 Base.in(x, s::FiniteNominal) = !(xor(s.b, x in s.members))
-Base.in(x, s::FiniteReal) = (x in s.members)
+Base.in(x, s::FiniteReal) = insorted(x, s.members)
 Base.in(x, s::Interval) = false
 Base.in(x::Real, s::Interval) = !((x < first(s) || (first(s) == x && !s.left)) || (x > last(s) || (last(s) == x && !s.right)))
 Base.in(x, s::IntervalSet) = false
@@ -368,11 +440,8 @@ Base.in(x::Real, s::IntervalSet) = any(v -> x in v, s.intervals)
 Base.in(x, s::Concat) = x in s.nominal
 Base.in(x::Real, s::Concat) = x in s.singleton || x in s.intervals
 
+Base.isempty(x::SPPLSet) = false
 Base.isempty(S::EmptySet) = true
-Base.isempty(S::FiniteSet) = false
-Base.isempty(x::Interval) = false
-Base.isempty(x::IntervalSet) = false
-Base.isempty(x::Concat) = false
 
 ########
 # Show

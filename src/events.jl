@@ -1,16 +1,10 @@
 abstract type Event end
-
-(e::Event)(assignment::Dict) = assignment in e
-
 abstract type BasicEvent <: Event end
+abstract type DNF end
+
 struct SolvedEvent{T<:SPPLSet} <: BasicEvent
     symbol::Symbol
     predicate::T
-end
-
-function Base.in(assignment::Dict{Symbol,T}, e::SolvedEvent) where {T}
-    !(e.symbol in keys(assignment)) && error("Error: Cannot evaluate event. Symbol $(e.symbol) not defined")
-    assignment[e.symbol] in e.predicate
 end
 
 struct UnsolvedEvent{T,F} <: BasicEvent
@@ -19,18 +13,12 @@ struct UnsolvedEvent{T,F} <: BasicEvent
     transform::F
 end
 
-function Base.in(assignment::Dict{Symbol,T}, event::UnsolvedEvent) where {T}
-    !(event.symbol in keys(assignment)) && error("Error: Cannot evaluate event. Symbol $(event.symbol) not defined")
-    event.transform(assignment[event.symbol]) in event.predicate
-end
-
 struct AndEvent{T} <: Event
     events::T
     is_dnf::Bool
 end
 AndEvent(events) = AndEvent(events, false)
 
-Base.in(assignment::Dict{Symbol,T}, e::AndEvent) where {T} = all(x -> x(assignment), e.events)
 
 struct OrEvent{T} <: Event
     events::T
@@ -38,12 +26,27 @@ struct OrEvent{T} <: Event
 end
 OrEvent(events) = OrEvent(events, false)
 
-(e::OrEvent)(assignment::Dict) = any(x -> x(assignment), e.events)
+
+#############
+# Evaluation
+#############
+(e::Event)(assignment::Dict) = assignment in e
+
+function Base.in(assignment::Dict{Symbol,T}, e::SolvedEvent) where {T}
+    !(e.symbol in keys(assignment)) && error("Error: Cannot evaluate event. Symbol $(e.symbol) not defined")
+    assignment[e.symbol] in e.predicate
+end
+function Base.in(assignment::Dict{Symbol,T}, event::UnsolvedEvent) where {T}
+    !(event.symbol in keys(assignment)) && error("Error: Cannot evaluate event. Symbol $(event.symbol) not defined")
+    event.transform(assignment[event.symbol]) in event.predicate
+end
+Base.in(assignment::Dict{Symbol,T}, e::AndEvent) where {T} = all(x -> x(assignment), e.events)
 Base.in(assignment::Dict{Symbol,T}, e::OrEvent) where {T} = any(x -> x(assignment), e.events)
 
 #############
 # Inversion
 #############
+preimage(e::SolvedEvent) =  preimage(e, true)
 function preimage(e::SolvedEvent, b::Bool)
     b && return Dict(e.symbol => e.predicate)
     return Dict(e.symbol => complement(e.predicate))

@@ -36,6 +36,8 @@ abstract type RealLeaf <: Leaf end
 # TODO: Consider C function pointers?
 abstract type ContinuousLeaf <: RealLeaf end
 
+ContinuousLeaf(symbol, dist, support::Interval, env) = IntervalLeaf(symbol, dist, support, env)
+ContinuousLeaf(symbol, dist, support::IntervalSet, env) = PiecewiseLeaf(symbol, dist, support, env)
 struct IntervalLeaf{D<:Distribution,I<:Interval,E, F} <: ContinuousLeaf
     symbol::Symbol
     dist::D
@@ -44,26 +46,54 @@ struct IntervalLeaf{D<:Distribution,I<:Interval,E, F} <: ContinuousLeaf
     is_conditioned::Bool
     Fl::Float64
     Fu::Float64
+    Z::Float64
     compiled_sampler::F
 end
 
 function IntervalLeaf(symbol::Symbol, dist::Distribution, support::Interval, env)
     f = eval(compile_environment(env))
-    (support == -Inf .. Inf) && return IntervalLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, f)
+    (support == -Inf .. Inf) && return IntervalLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, f)
     Fl = cdf(dist, first(support))
     Fu = cdf(dist, last(support))
-    IntervalLeaf(symbol, dist, support, env, true, Fl, Fu, f)
+    IntervalLeaf(symbol, dist, support, env, true, Fl, Fu, Fu-Fl, f)
 end
 
 function IntervalLeaf(symbol::Symbol, dist::Distribution, support::Interval)
     env = Dict(symbol => identity)
     IntervalLeaf(symbol, dist, support, env)
 end
-struct PiecewiseLeaf{D, I,F} <: ContinuousLeaf
+
+struct PiecewiseLeaf{D,I<:IntervalSet,E,T,F} <: ContinuousLeaf
     symbol::Symbol
     dist::D
     support::I
+    env::E
+    is_conditioned::Bool
+    Fl::T
+    Fu::T
+    weights::T
+    Z::Float64
     compiled_sampler::F
+end
+
+# Really a Sum SPE, but is specialized to an interval set so this is still a leaf.
+function PiecewiseLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet, env)
+    f = eval(compile_environment(env))
+    (support == -Inf .. Inf) && return PiecewiseLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, f)
+    Fl = cdf.(Ref(dist), first.(support.intervals))
+    Fu = cdf.(Ref(dist), last.(support.intervals))
+    weights = Fu .- Fl
+    Z = sum(weights)
+    weights ./= Z
+    Fl = tuple(Fl...)
+    Fu = tuple(Fu...)
+    weights = tuple(weights...)
+    PiecewiseLeaf(symbol, dist, support, env, true, Fl, Fu, weights, Z, f)
+end
+
+function PiecewiseLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet)
+    env = Dict(symbol => identity)
+    PiecewiseLeaf(symbol, dist, support, env)
 end
 
 struct DiscreteLeaf{D,I} <: RealLeaf
@@ -107,12 +137,14 @@ struct SumSPE{S<:SPE} <: BranchSPE
     symbols::OrderedSet{Symbol}
     weights::Vector{Float64}
     children::Vector{S}
+    Z::Float64
     function SumSPE(weights::Vector{Float64}, children::Vector{S}) where {S}
         length(weights) != length(children) && error("Error: Mismatched input lengths. The weight and children vector must have the same length.")
         children_symbols = get_symbols.(children)
         all(x -> x == children_symbols[1], children_symbols) || error("Error: Sum SPE scope mismatch. The children do not have the same symbols.")
+        Z = sum(weights .* partition.(children))
         # TODO: Lift child SumSPEs up
-        new{S}(children_symbols[1], weights, children)
+        new{S}(children_symbols[1], weights, children, Z)
     end
 end
 function SumSPE(children::Vector{S}) where {S<:SPE}
@@ -128,6 +160,7 @@ end
 struct ProductSPE{T} <: BranchSPE
     symbols::Set{Symbol}
     children::T
+    Z::Float64
     function ProductSPE(children::T) where {T}
         children_symbols = get_symbols.(children)
         for (i, child1) in enumerate(children_symbols)
@@ -137,7 +170,8 @@ struct ProductSPE{T} <: BranchSPE
             end
         end
         symbols = union(children_symbols...)
-        new{T}(symbols, children)
+        Z = prod(partition.(children))
+        new{T}(symbols, children, Z)
     end
 end
 
@@ -145,30 +179,19 @@ end
 #               Operations                  #
 #===========================================#
 
-############
-# Scoping
-############
+#########
+# Scope
+#########
 symbol(leaf::Leaf) = leaf.symbol
 get_symbols(leaf::Leaf) = keys(leaf.env)
 get_symbols(spe::BranchSPE) = spe.symbols
-
-############
-# Iteration
-############
-# Base.length(s::BranchSPE) = length(s.children)
-# function Base.iterate(iterable::BranchSPE, state=1)
-#     if state <= length(iterable.children)
-#         return (iterable.children[state], state + 1)
-#     else
-#         return nothing
-#     end
-# end
 
 ############
 # Support
 ############
 function support(s::SPE) end
 support(s::Leaf) = s.support
+
 ############
 # Sampling
 ############
@@ -194,6 +217,28 @@ function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{T}) where {T<:In
     return leaf.compiled_sampler(x)
 end
 
+function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{T}) where {T<:PiecewiseLeaf}
+    leaf = d[]
+    weights = leaf.weights
+    u = rand(rng)
+    i = 1
+    n = length(weights)
+    c = 0.0
+    Fl = leaf.Fl
+    Fu = leaf.Fu
+    while i < n
+        if c + weights[i] > u
+            break
+        end
+        c += weights[i]
+        i+=1
+    end
+    delta = (i==1 ? u : (u - c)) / weights[i]
+    F = delta * (Fu[i] - Fl[i])  + Fl[i]
+    x = quantile(leaf.dist, F)
+    return leaf.compiled_sampler(x)
+end
+
 # SumSPE
 function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{<:SumSPE})
     spe = d[]
@@ -216,37 +261,33 @@ function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{<:ProductSPE})
 end
 
 ###########
-# Support
-###########
-
-
-###########
 # Scoring
 ###########
 # function pdf(::SPE) end
 # function logpdf(::SPE, assignment::Dict) end
 # function logprob(::SPE, event::Event) end
-
-function Distributions.logpdf(leaf::Leaf, assignments::Dict{Symbol,T}) where {T}
-    !haskey(assignments, leaf.symbol) && error("Error: Symbol not defined.")
+# Distributions.logpdf(leaf::Leaf, val) =  logpdf(leaf.dist, val)
+function Distributions.logpdf(leaf::Leaf, assignments)
+    val = assignments[symbol(leaf)]
     if leaf.is_conditioned
         error("Not yet implemented")
     else
-        logpdf(leaf.dist, assignments[leaf.symbol])
+        logpdf(leaf.dist, val)
     end
 end
 
-function Distributions.pdf(leaf::Leaf, assignments::Dict{Symbol,T}) where {T}
-    !haskey(assignments, leaf.symbol)
+function Distributions.pdf(leaf::Leaf, assignments)
+    val = assignments[symbol(leaf)]
     if leaf.is_conditioned
         error("Not yet implemented")
     else
-        pdf(leaf.dist, assignments[leaf.symbol])
+        pdf(leaf.dist, val)
     end
 end
-function Distributions.logpdf(spe::SumSPE, assignments::Dict{Symbol,T}) where {T}
+function Distributions.logpdf(spe::SumSPE, assignments)
 end
-function Distributions.logpdf(spe::ProductSPE, assignments::Dict{Symbol,T}) where {T}
+
+function Distributions.logpdf(spe::ProductSPE, assignments)
 end
 
 # logprob(spe::SPE, event::Event) = logprob(spe, solve(event))
@@ -261,14 +302,27 @@ end
 ##############
 # Condition
 ##############
-# WARNING: Assume solved event!
 function condition(spe::SPE, event::Event) end
 
-function condition(spe::ContinuousLeaf, event::Event)
+function condition(spe::ContinuousLeaf, event)
+    !(event.symbol in get_symbols(spe)) && return spe
+    S = preimage(env(spe)[event.symbol], event.predicate)
+    new_support = intersect(support(spe), S)
+    isempty(new_support) && error("Cannot have empty support")
+    ContinuousLeaf(symbol(spe), spe.dist, new_support, env(spe))
 end
-function condition(spe::DiscreteLeaf, event::Event)
+
+function condition(spe::SumSPE, event::Event)
+    new_children = condition.(spe.children, Ref(event))
+    Zs = map(c->c.Z, new_children)
+    weights_new = spe.weights .* Zs
+    Z = sum(weights_new)
+    weights_new ./= Z
+    SumSPE(weights_new, new_children)
 end
-function condition(spe::NominalLeaf, event::Event)
+function condition(spe::ProductSPE, event::Event)
+    new_children = condition.(spe.children, Ref(event))
+    ProductSPE(new_children)
 end
 
 ##############
@@ -295,6 +349,7 @@ end
 ###############
 # Convenience
 ###############
+partition(spe::SPE) = spe.Z
 env(spe::SPE) = spe.env
 
 function Base.show(io::IO, spe::NominalLeaf)
@@ -318,7 +373,7 @@ end
 
 
 
-export SPE, BranchSPE, SumSPE, ProductSPE, IntervalLeaf, DiscreteLeaf, NominalLeaf
+export SPE, BranchSPE, SumSPE, ProductSPE, IntervalLeaf, PiecewiseLeaf, DiscreteLeaf, NominalLeaf
 export Distributions, Normal
-export symbol, get_symbols, support, logpdf, logprob, pdf
-export env
+export symbol, get_symbols, support, logpdf, logprob, pdf, condition
+export env, partition

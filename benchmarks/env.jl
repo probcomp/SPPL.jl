@@ -16,3 +16,12 @@ product_node = ProductSPE((i,k))
 rand(product_node)
 @btime rand($product_node)
 
+
+# Interval Leaves
+h = PiecewiseLeaf(:x, Normal(0,1), IntervalSet(-2.0..(-1.0), 1.0..2.0), Dict(:x=>identity, :y=>abs, :z => abs))
+rand(h)
+@btime rand($h)
+
+sum_node = SumSPE([i,h])
+@btime rand($sum_node)
+

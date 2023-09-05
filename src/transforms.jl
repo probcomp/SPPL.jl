@@ -32,6 +32,7 @@ end
 preimage(::typeof(identity), y::SPPLSet) = y
 preimage(::typeof(identity), y::FiniteNominal) = y
 preimage(::typeof(identity), y::Concat) = y
+preimage(::typeof(identity), y::IntervalSet) = y
 preimage(::typeof(identity), y::Real) = FiniteReal(y)
 
 ###############
