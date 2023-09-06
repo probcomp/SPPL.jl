@@ -1,7 +1,6 @@
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-Intervals = "d8418881-c3e1-53bb-8760-2df7ec849ed5"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"

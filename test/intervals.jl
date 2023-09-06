@@ -1,4 +1,3 @@
-import Intervals: Intervals
 function test_empty()
     @test EMPTY_SET == EMPTY_SET
 end
@@ -10,6 +9,7 @@ function test_finite_nominal()
     @test "y" in FiniteNominal("x", b=false)
     @test FiniteNominal("a"; b=false) == FiniteNominal("a"; b=false)
 end
+
 function test_interval()
     @test Interval(1, 1, true, true) == Interval(1, 1, true, true)
     @test Interval(1, 2, true, true) != Interval(1, 2, true, false)
@@ -19,12 +19,11 @@ function test_interval()
 
     # Convenience methods
     @test 1 .. 5 == Interval(1, 5, true, true)
-    @test IntervalSet(1, 2, true, false) == @int "[1,2)"
 end
 
 function test_finite_real()
-    @test 1 in FiniteReal(Set([1, 2, 3]))
-    @test !(2 in FiniteReal(Set([1])))
+    @test 1 in FiniteReal([1, 2, 3])
+    @test !(2 in FiniteReal([1]))
     @test 1 in FiniteReal(1)
     @test !(3 in FiniteReal(1, 2))
     @test FiniteReal(1, 2, 3) == FiniteReal(1, 2, 3)
@@ -47,10 +46,27 @@ function test_invert()
         (@int "[-Inf, 1)"),
         (@int "(1, Inf]")
     ])
-    @test invert(1 .. 5) == IntervalSet([
-        (@int "[-Inf, 1)"),
+    @test invert(FiniteReal(-1,1)) == IntervalSet([
+        (@int "[-Inf,-1)"),
+        (@int "(-1,1)"),
         (@int "(1,Inf]")
     ])
+    @test invert(FiniteReal(Inf)) == @int("[-Inf,Inf)")
+    @test invert(FiniteReal(-Inf)) == @int("(-Inf,Inf]")
+    @test invert(FiniteReal(-Inf, Inf)) == @int "(-Inf, Inf)"
+    @test invert(FiniteReal(3,Inf)) == IntervalSet([
+        (@int "[-Inf, 3)"),
+        (@int "(3,Inf)")
+    ])
+
+    @test invert(1 .. 5) == IntervalSet([
+        (@int "[-Inf, 1)"),
+        (@int "(5,Inf]")
+    ])
+    @test invert(1 .. Inf) == @int ("[-Inf, 1)")
+    @test invert(-Inf..Inf) == EMPTY_SET
+    @test_skip invert(@int("(-Inf,Inf)")) == FiniteReal(-Inf,Inf)
+
 end
 
 function test_complement()
