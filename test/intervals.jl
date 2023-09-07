@@ -119,12 +119,14 @@ function test_intersect()
     @test intersect(set1, set2) == FiniteNominal("a", "c")
     @test intersect(set1, set3) == FiniteNominal("a", "b", "c")
     @test intersect(set4, set1) == FiniteNominal("b", "c")
-    @test intersect(set3, set4) == FiniteNominal("e"; b=false)
+    @test intersect(set3, set4) == FiniteNominal("a", "e"; b=false)
 
     set1 = FiniteNominal("a", "b", "c")
     set2 = FiniteNominal("b", "c", "d")
     set3 = FiniteNominal("c", "d", "e")
     @test intersect(set1, set2, set3) == FiniteNominal("c")
+
+    @test !("a" in (FiniteNominal(Set(["a"]), false) ∩ FiniteNominal(Set(["b"]), false)))
 
     # Intervals
     @test intersect(0 .. 4, 2 .. 3) == 2 .. 3

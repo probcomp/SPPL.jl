@@ -2,9 +2,11 @@ using BenchmarkTools
 using Distributions
 using SPPL
 
-i = IntervalLeaf(:x, Normal(0,1), -Inf..Inf, Dict(:x=>identity, :y=>exp, :z=>abs))
+i = RealLeaf(:x, Normal(0,1), -Inf..Inf, Dict(:x=>identity, :y=>exp, :z=>abs))
 # j = IntervalLeaf(:x, Normal(0,1), 0.0 .. 1.0, Dict(:x=>identity, :y=>log, :z=>exp))
 
+c = SolvedEvent(:f, FiniteReal(1,2,3.0))
+d = UnsolvedEvent(:z, -Inf..Inf, exp)
 e = SolvedEvent(:x, -1.0..1.0)
 f = SolvedEvent(:a, -1.0..1.0)
 g = SolvedEvent(:y, 1.0..2.0)
@@ -13,7 +15,6 @@ ee = condition(i,e)
 ff = condition(i,f)
 gg = condition(i,g)
 hh = condition(i,h)
-
 
 e_new = SolvedEvent(:x, IntervalSet(@int("(1.0, 1.5)"), 1.7..2.0))
 cc = condition(hh, e_new)

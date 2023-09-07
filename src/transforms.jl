@@ -1,16 +1,10 @@
 ##############
 # Transforms
 ##############
-# sub_expr + symbols
 
 #~~~ Functions~~~~#
-# get_symbols
-# domain
-# range
-# substitute
-# evaluate
 preimage(f, ::EmptySet) = EMPTY_SET
-preimage(f, y::FiniteNominal) = EMPTY_SET
+preimage(f, ::FiniteNominal) = EMPTY_SET
 function preimage(f, y::FiniteReal)
     preimages = preimage.(Ref(f), y.members)
     union(preimages...)
@@ -25,7 +19,6 @@ function preimage(f, y::Concat)
     union(singletons, intervals)
 end
 
-
 #############
 # Identity
 #############
@@ -33,6 +26,7 @@ preimage(::typeof(identity), y::SPPLSet) = y
 preimage(::typeof(identity), y::FiniteNominal) = y
 preimage(::typeof(identity), y::Concat) = y
 preimage(::typeof(identity), y::IntervalSet) = y
+preimage(::typeof(identity), y::FiniteReal) = y
 preimage(::typeof(identity), y::Real) = FiniteReal(y)
 
 ###############
@@ -62,11 +56,33 @@ function preimage(::typeof(sqrt), y::Interval)
     return Interval(a^2, b^2, left, right)
 end
 
+function preimage(::typeof(sqrt), y::IntervalSet) # TODO: Binary search
+    j = findlast(x -> (last(x) < 0 || (last(x) == 0 && !x.right )), y.intervals) 
+    if j === nothing
+        return (y.intervals) .^ 2
+    elseif j == length(y.intervals)
+        return EMPTY_SET
+    else
+        intervals = (y.intervals[j+1:end]) .^ 2
+        int = y.intervals[j+1]
+        clipped = first(int) < 0
+        a = clipped ? 0 : first(int)
+        b = last(int)
+        left = clipped ? true : int.left
+        right = int.right
+        intervals[1] = Interval(a^2, b^2, left, right, true)
+        if length(intervals) == 1
+            return intervals[1]
+        end
+        return IntervalSet(intervals)
+    end
+end
+
 ##############
 # Logarithm
 ##############
 preimage(::typeof(log), y::Real) = FiniteReal(exp(y))
-preimage(::typeof(log), y::Interval) = Interval(exp(first(y)), exp(last(y)), y.left, y.right)
+preimage(::typeof(log), y::Interval) = exp(y)
 
 ##############
 # Exponential
@@ -75,6 +91,7 @@ function preimage(::typeof(exp), y::Real)
     y < 0 && return EMPTY_SET
     FiniteReal(log(y))
 end
+
 function preimage(::typeof(exp), y::Interval)
     if last(y) < 0 || (last(y) == 0 && !y.right)
         return EMPTY_SET
@@ -125,6 +142,24 @@ function preimage(::typeof(/), y::Interval)
     #     return IntervalSet(Interval{L,R}(1 / first(y), 1 / last(y)))
     # end
     error("Not yet implemented")
+end
+
+function preimage(::typeof(/), x::Interval, y::Real)
+    y == 0 && error("Division by zero???")
+    x * y
+end
+function preimage(::typeof(/), x::FiniteReal, y::Real)
+    y == 0 && error("Division by zero????")
+    x * y
+end
+function preimage(::typeof(*), x::Interval, y::Real)
+    y == 0 && return (y in x ? FiniteReal(0) : EMPTY_SET)
+    return x /y
+end
+
+function preimage(::typeof(*), x::FiniteReal, y::Real)
+    y == 0 && return (y in x ? FiniteReal(0) : EMPTY_SET)
+    x / y
 end
 
 ###############

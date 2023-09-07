@@ -1,6 +1,7 @@
 module SPPL
 using MacroTools
 using Distributions
+using DataStructures
 import Random: AbstractRNG, default_rng, rand!
 import Base: rand
 

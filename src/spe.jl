@@ -1,9 +1,7 @@
 using Random
 import Distributions: pdf, logpdf, support
-using Dictionaries
 
 abstract type SPE end
-prob(spe::SPE, event::Event) = exp(logpdf(spe, event))
 
 
 ###########
@@ -15,55 +13,21 @@ prob(spe::SPE, event::Event) = exp(logpdf(spe, event))
 #sample_func
 #sample_many
 #transform
-#logprob
-#condition
-#constrain
 #mutual_information
-#prob
-#pdf
 #and (as an SPE)
 #or (as an SPE)
 #partition_list_blocks
-#get_symbols
 
 ##############
 # Leaf SPE
 ##############
 
 abstract type Leaf <: SPE end
-abstract type RealLeaf <: Leaf end
 
-# TODO: Consider C function pointers?
-abstract type ContinuousLeaf <: RealLeaf end
-
-ContinuousLeaf(symbol, dist, support::Interval, env) = IntervalLeaf(symbol, dist, support, env)
-ContinuousLeaf(symbol, dist, support::IntervalSet, env) = PiecewiseLeaf(symbol, dist, support, env)
-struct IntervalLeaf{D<:Distribution,I<:Interval,E, F} <: ContinuousLeaf
-    symbol::Symbol
-    dist::D
-    support::I
-    env::E
-    is_conditioned::Bool
-    Fl::Float64
-    Fu::Float64
-    Z::Float64
-    compiled_sampler::F
-end
-
-function IntervalLeaf(symbol::Symbol, dist::Distribution, support::Interval, env)
-    f = eval(compile_environment(env))
-    (support == -Inf .. Inf) && return IntervalLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, f)
-    Fl = cdf(dist, first(support))
-    Fu = cdf(dist, last(support))
-    IntervalLeaf(symbol, dist, support, env, true, Fl, Fu, Fu-Fl, f)
-end
-
-function IntervalLeaf(symbol::Symbol, dist::Distribution, support::Interval)
-    env = Dict(symbol => identity)
-    IntervalLeaf(symbol, dist, support, env)
-end
-
-struct PiecewiseLeaf{D,I<:IntervalSet,E,T,F} <: ContinuousLeaf
+# RealLeaf(symbol, dist, support::Interval, env) = IntervalLeaf(symbol, dist, support, env)
+# RealLeaf(symbol, dist, support::IntervalSet, env) = IntervalSetLeaf(symbol, dist, support, env)
+# RealLeaf(symbol, dist, support::FiniteReal, env) = FiniteRealLeaf(symbol, dist, support, env)
+struct RealLeaf{D<:Distribution,I<:SPPLSet,E, T,F} <: Leaf
     symbol::Symbol
     dist::D
     support::I
@@ -76,10 +40,45 @@ struct PiecewiseLeaf{D,I<:IntervalSet,E,T,F} <: ContinuousLeaf
     compiled_sampler::F
 end
 
-# Really a Sum SPE, but is specialized to an interval set so this is still a leaf.
-function PiecewiseLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet, env)
+function RealLeaf(symbol::Symbol, dist::Distribution, support::Interval, env)
     f = eval(compile_environment(env))
-    (support == -Inf .. Inf) && return PiecewiseLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, f)
+    (support == -Inf .. Inf) && return RealLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, 1.0, f)
+    Fl = cdf(dist, first(support))
+    Fu = cdf(dist, last(support))
+    RealLeaf(symbol, dist, support, env, true, Fl, Fu, Fu-Fl, Fu-Fl, f)
+end
+
+function RealLeaf(symbol::Symbol, dist::Distribution{Univariate, Discrete}, support::Interval, env)
+    f = eval(compile_environment(env))
+    (support == -Inf .. Inf) && return RealLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, f)
+    w = pdf(dist, first(support))
+    Fl = cdf(dist, first(support)) - w
+    Fu = cdf(dist, last(support))
+    RealLeaf(symbol, dist, support, env, true, Fl, Fu, Fu-Fl, f)
+end
+
+function RealLeaf(symbol::Symbol, dist::Distribution, support::Interval)
+    env = Dict(symbol => identity)
+    RealLeaf(symbol, dist, support, env)
+end
+
+# struct IntervalSetLeaf{D,I<:IntervalSet,E,T,F} <: RealLeaf
+#     symbol::Symbol
+#     dist::D
+#     support::I
+#     env::E
+#     is_conditioned::Bool
+#     Fl::T
+#     Fu::T
+#     weights::T
+#     Z::Float64
+#     compiled_sampler::F
+# end
+
+# Really a Sum SPE, but is specialized to an interval set so this is still a leaf.
+function RealLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet, env)
+    f = eval(compile_environment(env))
+    (support == -Inf .. Inf) && return RealLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, f)
     Fl = cdf.(Ref(dist), first.(support.intervals))
     Fu = cdf.(Ref(dist), last.(support.intervals))
     weights = Fu .- Fl
@@ -88,21 +87,12 @@ function PiecewiseLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet,
     Fl = tuple(Fl...)
     Fu = tuple(Fu...)
     weights = tuple(weights...)
-    PiecewiseLeaf(symbol, dist, support, env, true, Fl, Fu, weights, Z, f)
+    RealLeaf(symbol, dist, support, env, true, Fl, Fu, weights, Z, f)
 end
 
-function PiecewiseLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet)
+function RealLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet)
     env = Dict(symbol => identity)
-    PiecewiseLeaf(symbol, dist, support, env)
-end
-
-struct DiscreteLeaf{D,I} <: RealLeaf
-    symbol::Symbol
-    dist::D
-    support::I
-    mappings::Dict{Symbol,Float64}
-    is_conditioned::Bool
-    env::Dict{Symbol,Function}
+    RealLeaf(symbol, dist, support, env)
 end
 
 struct NominalLeaf{D<:Categorical, I, E, F} <: Leaf
@@ -114,7 +104,6 @@ struct NominalLeaf{D<:Categorical, I, E, F} <: Leaf
     env::E
     compiled_sampler::F
 end
-
 # function NominalLeaf(symbol, weights::Vector, support::FiniteNominal, env=Dict{Symbol,Function}())
 #     !support.b && error("Error: FiniteNominal must not be negated.")
 #     length(weights) != length(support.members) && error("Error: Mismatched input lengths. The weight and support vectors must have the same length.")
@@ -127,6 +116,20 @@ end
 #     n = length(support)
 #     NominalLeaf(symbol, ones(n) / n, support)
 # end
+
+struct AtomicLeaf{T,E,F} <: Leaf
+    symbol::Symbol
+    support::T
+    env::E
+    compiled_sampler::F
+end
+
+function AtomicLeaf(symbol::Symbol, value::T, env::AbstractDict=Dict{Symbol,Function}()) where {T}
+    env[symbol] = identity
+    f = eval(compile_environment(env))
+    AtomicLeaf(symbol, value, env,f)
+end
+
 ############
 # Sum SPE
 ###########
@@ -134,7 +137,7 @@ end
 abstract type BranchSPE <: SPE end
 
 struct SumSPE{S<:SPE} <: BranchSPE
-    symbols::OrderedSet{Symbol}
+    symbols::Vector{Symbol}
     weights::Vector{Float64}
     children::Vector{S}
     Z::Float64
@@ -152,7 +155,6 @@ function SumSPE(children::Vector{S}) where {S<:SPE}
     weights = ones(n) / n
     SumSPE(weights, children)
 end
-
 
 ###############
 # Product SPE
@@ -202,8 +204,14 @@ function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{T}) where {T<:No
     (symbol(spe) => spe.outcomes[i])
 end
 
+function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{T}) where {T<:AtomicLeaf}
+    leaf = d[]
+    val = leaf.support
+    return leaf.compiled_sampler(val)
+end
+
 # Interval Leaf
-function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{T}) where {T<:IntervalLeaf}
+function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{RealLeaf{T}}) where {T<:Interval}
     leaf = d[]
     if leaf.is_conditioned
         dist = leaf.dist
@@ -217,7 +225,7 @@ function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{T}) where {T<:In
     return leaf.compiled_sampler(x)
 end
 
-function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{T}) where {T<:PiecewiseLeaf}
+function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{RealLeaf{T}}) where {T<:IntervalSet}
     leaf = d[]
     weights = leaf.weights
     u = rand(rng)
@@ -263,11 +271,13 @@ end
 ###########
 # Scoring
 ###########
+prob(spe::SPE, event::Event) = exp(logpdf(spe, event))
+Distributions.pdf(spe::SPE, assignments) = exp(logpdf(spe, assignments))
+
 # function pdf(::SPE) end
-# function logpdf(::SPE, assignment::Dict) end
-# function logprob(::SPE, event::Event) end
 # Distributions.logpdf(leaf::Leaf, val) =  logpdf(leaf.dist, val)
-function Distributions.logpdf(leaf::Leaf, assignments)
+
+function Distributions.logpdf(leaf::RealLeaf, assignments)
     val = assignments[symbol(leaf)]
     if leaf.is_conditioned
         error("Not yet implemented")
@@ -276,14 +286,12 @@ function Distributions.logpdf(leaf::Leaf, assignments)
     end
 end
 
-function Distributions.pdf(leaf::Leaf, assignments)
+function Distributions.logpdf(leaf::AtomicLeaf, assignments)
+    !(symbol(leaf) in keys(assignments)) && error("Not yet implemented")
     val = assignments[symbol(leaf)]
-    if leaf.is_conditioned
-        error("Not yet implemented")
-    else
-        pdf(leaf.dist, val)
-    end
+    return (val != leaf.support) ?  -Inf : 0.0
 end
+
 function Distributions.logpdf(spe::SumSPE, assignments)
 end
 
@@ -291,10 +299,8 @@ function Distributions.logpdf(spe::ProductSPE, assignments)
 end
 
 # logprob(spe::SPE, event::Event) = logprob(spe, solve(event))
-function logprob(leaf::ContinuousLeaf, event::Event)
+function logprob(leaf::RealLeaf, event::Event)
     intersect(support(leaf), preimage(event, true))
-end
-function logprob(leaf::DiscreteLeaf, event::Event)
 end
 function logprob(leaf::NominalLeaf, event::Event)
 end
@@ -302,14 +308,25 @@ end
 ##############
 # Condition
 ##############
-function condition(spe::SPE, event::Event) end
 
-function condition(spe::ContinuousLeaf, event)
+function condition(spe::RealLeaf, event)
     !(event.symbol in get_symbols(spe)) && return spe
     S = preimage(env(spe)[event.symbol], event.predicate)
     new_support = intersect(support(spe), S)
     isempty(new_support) && error("Cannot have empty support")
-    ContinuousLeaf(symbol(spe), spe.dist, new_support, env(spe))
+    println(typeof(new_support))
+    RealLeaf(symbol(spe), spe.dist, new_support, env(spe))
+end
+function condition(spe::RealLeaf, event::AndEvent)
+    new_support = support(spe)
+    for e in event.events
+        sym = symbol(e)
+        if sym in get_symbols(spe)
+            A = preimage(env(spe)[sym], e.predicate)
+            new_support = intersect(new_support, A)
+        end
+    end
+    RealLeaf(symbol(spe), spe.dist, new_support, env(spe))
 end
 
 function condition(spe::SumSPE, event::Event)
@@ -373,7 +390,6 @@ end
 
 
 
-export SPE, BranchSPE, SumSPE, ProductSPE, IntervalLeaf, PiecewiseLeaf, DiscreteLeaf, NominalLeaf
+export SPE, SumSPE, ProductSPE, RealLeaf, NominalLeaf, AtomicLeaf
+export symbol, get_symbols, support, logpdf, logprob, pdf, condition, env, partition
 export Distributions, Normal
-export symbol, get_symbols, support, logpdf, logprob, pdf, condition
-export env, partition
