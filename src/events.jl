@@ -150,6 +150,7 @@ distribute(x::Event, y::Event) = x∩y
 # DNF and Simplification
 #########################
 
+solve(event::SolvedEvent) = event
 solve(event::UnsolvedEvent) = SolvedEvent(event.symbol, preimage(event.transform, event.predicate))
 dnf(event::BasicEvent) = event
 dnf(event::UnsolvedEvent) = solve(event)

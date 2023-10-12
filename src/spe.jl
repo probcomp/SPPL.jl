@@ -24,10 +24,7 @@ abstract type SPE end
 
 abstract type Leaf <: SPE end
 
-# RealLeaf(symbol, dist, support::Interval, env) = IntervalLeaf(symbol, dist, support, env)
-# RealLeaf(symbol, dist, support::IntervalSet, env) = IntervalSetLeaf(symbol, dist, support, env)
-# RealLeaf(symbol, dist, support::FiniteReal, env) = FiniteRealLeaf(symbol, dist, support, env)
-struct RealLeaf{D<:Distribution,I<:SPPLSet,E, T,F} <: Leaf
+struct RealLeaf{D<:Distribution,I<:SPPLSet,E, T} <: Leaf
     symbol::Symbol
     dist::D
     support::I
@@ -37,15 +34,35 @@ struct RealLeaf{D<:Distribution,I<:SPPLSet,E, T,F} <: Leaf
     Fu::T
     weights::T
     Z::Float64
-    compiled_sampler::F
+    # compiled_sampler::F
 end
 
-function RealLeaf(symbol::Symbol, dist::Distribution, support::Interval, env)
-    f = eval(compile_environment(env))
-    (support == -Inf .. Inf) && return RealLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, 1.0, f)
+function RealLeaf(symbol::Symbol, dist::Distribution{Univariate, Continuous}, support::Interval, env)
+    # f = eval(compile_environment(env))
+    if support == -Inf .. Inf 
+        # return RealLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, 1.0,f)
+        return RealLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, 1.0)
+    end
     Fl = cdf(dist, first(support))
     Fu = cdf(dist, last(support))
-    RealLeaf(symbol, dist, support, env, true, Fl, Fu, Fu-Fl, Fu-Fl, f)
+    # RealLeaf(symbol, dist, support, env, true, Fl, Fu, Fu-Fl, Fu-Fl, f)
+    RealLeaf(symbol, dist, support, env, true, Fl, Fu, Fu-Fl, Fu-Fl)
+end
+
+function RealLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet, env)
+    # f = eval(compile_environment(env))
+    if (support == -Inf .. Inf)
+        return RealLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0)
+    end
+    Fl = cdf.(Ref(dist), first.(support.intervals))
+    Fu = cdf.(Ref(dist), last.(support.intervals))
+    weights = Fu .- Fl
+    Z = sum(weights)
+    weights ./= Z
+    Fl = tuple(Fl...)
+    Fu = tuple(Fu...)
+    weights = tuple(weights...)
+    RealLeaf(symbol, dist, support, env, true, Fl, Fu, weights, Z)
 end
 
 function RealLeaf(symbol::Symbol, dist::Distribution{Univariate, Discrete}, support::Interval, env)
@@ -57,43 +74,14 @@ function RealLeaf(symbol::Symbol, dist::Distribution{Univariate, Discrete}, supp
     RealLeaf(symbol, dist, support, env, true, Fl, Fu, Fu-Fl, f)
 end
 
-function RealLeaf(symbol::Symbol, dist::Distribution, support::Interval)
-    env = Dict(symbol => identity)
+function RealLeaf(symbol::Symbol, dist::Distribution, support)
+    env = SortedDict(symbol => identity)
     RealLeaf(symbol, dist, support, env)
 end
 
-# struct IntervalSetLeaf{D,I<:IntervalSet,E,T,F} <: RealLeaf
-#     symbol::Symbol
-#     dist::D
-#     support::I
-#     env::E
-#     is_conditioned::Bool
-#     Fl::T
-#     Fu::T
-#     weights::T
-#     Z::Float64
-#     compiled_sampler::F
-# end
 
 # Really a Sum SPE, but is specialized to an interval set so this is still a leaf.
-function RealLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet, env)
-    f = eval(compile_environment(env))
-    (support == -Inf .. Inf) && return RealLeaf(symbol, dist, -Inf .. Inf, env, false, 0.0, 1.0, 1.0, f)
-    Fl = cdf.(Ref(dist), first.(support.intervals))
-    Fu = cdf.(Ref(dist), last.(support.intervals))
-    weights = Fu .- Fl
-    Z = sum(weights)
-    weights ./= Z
-    Fl = tuple(Fl...)
-    Fu = tuple(Fu...)
-    weights = tuple(weights...)
-    RealLeaf(symbol, dist, support, env, true, Fl, Fu, weights, Z, f)
-end
 
-function RealLeaf(symbol::Symbol, dist::Distribution, support::IntervalSet)
-    env = Dict(symbol => identity)
-    RealLeaf(symbol, dist, support, env)
-end
 
 struct NominalLeaf{D<:Categorical, I, E, F} <: Leaf
     symbol::Symbol
@@ -211,7 +199,7 @@ function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{T}) where {T<:At
 end
 
 # Interval Leaf
-function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{RealLeaf{T}}) where {T<:Interval}
+function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{<:RealLeaf}) 
     leaf = d[]
     if leaf.is_conditioned
         dist = leaf.dist
@@ -222,30 +210,30 @@ function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{RealLeaf{T}}) wh
     else
         x = rand(rng, leaf.dist)
     end
-    return leaf.compiled_sampler(x)
+    # return leaf.compiled_sampler(x)
 end
 
-function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{RealLeaf{T}}) where {T<:IntervalSet}
-    leaf = d[]
-    weights = leaf.weights
-    u = rand(rng)
-    i = 1
-    n = length(weights)
-    c = 0.0
-    Fl = leaf.Fl
-    Fu = leaf.Fu
-    while i < n
-        if c + weights[i] > u
-            break
-        end
-        c += weights[i]
-        i+=1
-    end
-    delta = (i==1 ? u : (u - c)) / weights[i]
-    F = delta * (Fu[i] - Fl[i])  + Fl[i]
-    x = quantile(leaf.dist, F)
-    return leaf.compiled_sampler(x)
-end
+# function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{RealLeaf{T,U}}) where {T<:ContinuousDistribution, U<:IntervalSet}
+#     leaf = d[]
+#     weights = leaf.weights
+#     u = rand(rng)
+#     i = 1
+#     n = length(weights)
+#     c = 0.0
+#     Fl = leaf.Fl
+#     Fu = leaf.Fu
+#     while i < n
+#         if c + weights[i] > u
+#             break
+#         end
+#         c += weights[i]
+#         i+=1
+#     end
+#     delta = (i==1 ? u : (u - c)) / weights[i]
+#     F = delta * (Fu[i] - Fl[i])  + Fl[i]
+#     x = quantile(leaf.dist, F)
+#     return leaf.compiled_sampler(x)
+# end
 
 # SumSPE
 function Random.rand(rng::AbstractRNG, d::Random.SamplerTrivial{<:SumSPE})

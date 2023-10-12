@@ -2,7 +2,7 @@ using BenchmarkTools
 using Distributions
 using SPPL
 
-i = RealLeaf(:x, Normal(0,1), -Inf..Inf, Dict(:x=>identity, :y=>exp, :z=>abs))
+i = RealLeaf(:x, Normal(0,1), -Inf..Inf, SortedDict(:x=>identity, :y=>exp, :z=>abs))
 # j = IntervalLeaf(:x, Normal(0,1), 0.0 .. 1.0, Dict(:x=>identity, :y=>log, :z=>exp))
 
 c = SolvedEvent(:f, FiniteReal(1,2,3.0))
