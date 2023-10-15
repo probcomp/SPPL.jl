@@ -11,4 +11,9 @@ i = IntervalSet(
     ]
 )
 
-invert(i)
+complement(i)
+macro joe(ex)
+    dump(ex)
+    ex
+end
+@joe log

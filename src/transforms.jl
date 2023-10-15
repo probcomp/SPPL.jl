@@ -3,47 +3,39 @@
 ##############
 
 #~~~ Functions~~~~#
-preimage(f, ::EmptySet) = EMPTY_SET
-preimage(f, ::FiniteNominal) = EMPTY_SET
-function preimage(f, y::FiniteReal)
-    preimages = preimage.(Ref(f), y.members)
-    union(preimages...)
-end
-function preimage(f, y::IntervalSet)
-    preimages = preimage.(Ref(f), y.intervals)
-    union(preimages...)
-end
-function preimage(f, y::Concat)
-    singletons = preimage(f, y.singleton)
-    intervals = preimage(f, y.intervals)
-    union(singletons, intervals)
-end
+# preimage(f, ::EmptySet) = EMPTY_SET
+# preimage(f, ::FiniteNominal) = EMPTY_SET
+
+# function preimage(f, y::IntervalSet)
+#     preimages = preimage.(Ref(f), y.intervals)
+#     union(preimages...)
+# end
+# function preimage(f, y::Concat)
+#     singletons = preimage(f, y.singleton)
+#     intervals = preimage(f, y.intervals)
+#     union(singletons, intervals)
+# end
 
 #############
 # Identity
 #############
 preimage(::typeof(identity), y::SPPLSet) = y
-preimage(::typeof(identity), y::FiniteNominal) = y
-preimage(::typeof(identity), y::Concat) = y
+# preimage(::typeof(identity), y::FiniteNominal) = y
+# preimage(::typeof(identity), y::Concat) = y
 preimage(::typeof(identity), y::IntervalSet) = y
-preimage(::typeof(identity), y::FiniteReal) = y
-preimage(::typeof(identity), y::Real) = FiniteReal(y)
+# preimage(::typeof(identity), y::FiniteReal) = y
+# preimage(::typeof(identity), y::Real) = FiniteReal(y)
 
 ###############
 # Composition
 ###############
-function preimage(f::ComposedFunction, y::Union{SPPLSet,Real})
-    z = preimage(f.outer, y)
-    return preimage(f.inner, z)
+function preimage(f::ComposedFunction, y::SPPLSet)
+    return preimage(f.inner, preimage(f.outer, y))
 end
 
 # ###############
 # # Square Root
 # ###############
-function preimage(::typeof(sqrt), y::Real)
-    y < 0 && return EMPTY_SET
-    FiniteReal(y^2)
-end
 function preimage(::typeof(sqrt), y::Interval)
     if last(y) < 0 || (last(y) == 0 && !y.right)
         return EMPTY_SET
@@ -81,8 +73,8 @@ end
 ##############
 # Logarithm
 ##############
-preimage(::typeof(log), y::Real) = FiniteReal(exp(y))
 preimage(::typeof(log), y::Interval) = exp(y)
+preimage(::typeof(log), y::IntervalSet) = exp(y)
 
 ##############
 # Exponential
@@ -107,11 +99,6 @@ end
 ##################
 # Absolute Value
 ##################
-function preimage(::typeof(abs), y::Real)
-    y < 0 && return EMPTY_SET
-    y == 0 && return FiniteReal(y)
-    FiniteReal(y, -y)
-end
 function preimage(::typeof(abs), y::Interval)
     if last(y) < 0 || (last(y) == 0 && !y.right)
         return EMPTY_SET
@@ -130,7 +117,6 @@ end
 # Reciprocal
 ##############
 
-preimage(::typeof(/), y::Real) = y == 0 ? EMPTY_SET : 1 / y
 function preimage(::typeof(/), y::Interval)
     # if 0 in y
     #     A = Interval{L,Open}(1 / first(y), 0)
@@ -144,23 +130,31 @@ function preimage(::typeof(/), y::Interval)
     error("Not yet implemented")
 end
 
-function preimage(::typeof(/), x::Interval, y::Real)
-    y == 0 && error("Division by zero???")
-    x * y
-end
-function preimage(::typeof(/), x::FiniteReal, y::Real)
-    y == 0 && error("Division by zero????")
-    x * y
-end
-function preimage(::typeof(*), x::Interval, y::Real)
-    y == 0 && return (y in x ? FiniteReal(0) : EMPTY_SET)
-    return x /y
+#####################
+# Linear Transforms
+#####################
+
+function preimage(::typeof(/), r::Real, interval::Interval)
+    r == 0 && error("Division by zero???")
+    interval*r 
 end
 
-function preimage(::typeof(*), x::FiniteReal, y::Real)
-    y == 0 && return (y in x ? FiniteReal(0) : EMPTY_SET)
-    x / y
+function preimage(::typeof(/), r::Real, i::IntervalSet{T}) where {T}
+    r == 0 && error("Division by zero.")
+    i*r
 end
+
+# WARNING: Assumes r != 0
+function preimage(::typeof(*), r::Real, interval::Interval{T}) where T
+    # U = promote_type(T, typeof(r))
+    # if r == 0 
+    #     range = 0 in interval ? Interval{U}[zero(U)..zero(U)] : Interval{U}[]
+    #     return IntervalSet(range)
+    # end
+    return interval / r
+end
+
+preimage(::typeof(*), r::Real, interval::IntervalSet) = return interval / r
 
 ###############
 # Polynomials
