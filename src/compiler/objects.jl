@@ -49,6 +49,30 @@ function Base.setindex!(env::Environment, ident, value)
     setindex!(env.constants, ident, value) 
 end
 
+function getvariable(env::Environment, ident)
+    if haskey(env.variables, ident)
+        return env.variables[ident]
+    elseif env.parent === nothing
+        return nothing
+    else
+        return getindex(env.parent, ident)
+    end
+end
+
+function hasvariable(env::Environment, ident)
+    if haskey(env.variables, ident)
+        return true
+    elseif env.parent === nothing
+        return false
+    else
+        return hasvariable(env.parent, ident)
+    end
+end
+
+function setvariable!(env::Environment, ident, value)
+    setindex!(env.variables, ident, value)
+end
+
 struct Program 
     env::Environment
     errors::Vector{String}

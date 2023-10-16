@@ -1,3 +1,12 @@
+struct AdditiveTransform{T}
+    a :: T
+end
+(t::AdditiveTransform)(x) = x+t.a
+
+struct MultiplicativeTransform{T}
+    a ::T
+end
+(t::MultiplicativeTransform)(x) = x * t.a
 ##############
 # Transforms
 ##############

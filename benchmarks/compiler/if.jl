@@ -2,7 +2,7 @@ using SPPL
 
 DEBUG = Dict(
     SPPL.DEBUG_SAMPLE=>true,
-    SPPL.DEBUG_CONSTANT=>false,
+    SPPL.DEBUG_SUBSTITUTE=>false,
 )
 
 val  = @sppl DEBUG  begin
