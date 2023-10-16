@@ -3,6 +3,8 @@ using Symbolics
 
 include("objects.jl")
 include("transformations.jl")
+include("condition.jl")
+include("sppl_to_spe.jl")
 
 macro sppl(ex)
     ex = MacroTools.longdef(ex)
@@ -22,10 +24,14 @@ function compile(ex)
     debug = Dict{DebugFlag, Bool}()
     compile(ex, debug)
 end
+
 function compile(ex, debug) 
     env = Environment()
     errors = String[]
     parse_block(ex, env, errors, debug)
+    if length(errors) > 0
+        throw(errors)
+    end
     return Program(env, errors)
 end
 
@@ -132,10 +138,17 @@ function parse_distribution(ex, env, err::Vector{String}, debug::Dict)
         dist = eval(dist_type)
         return dist(dist_args...)
     else
+        sub_ex = substitute_constants(ex, env, err, debug)
+
         try
-            transform = parse_transformation(ex, env, err, debug)
+            transform = parse_transformation(sub_ex, err, debug)
             if transform === nothing
                 push!(err, "Could not interpret transform $(ex)")
+                return nothing
+            end
+            if !hasvariable(env, transform[2])
+                push!(err, "Variable $(transform[2]) not in scope")
+                return nothing
             end
             return transform
         catch e
@@ -245,6 +258,11 @@ function parse_if_block(ex, env, err::Vector{String}, debug=false)
 end
 
 function parse_condition(ex, env, err::Vector{String}, debug::Dict)
+    query = ex.args[2]
+    if get(debug, DEBUG_CONDITION, false)
+        println("Condition $(ex)")
+    end
+    parse_query(query, env, err, debug)
 end
 
 
@@ -259,4 +277,5 @@ export @sppl
     DEBUG_ASSIGNMENT
     DEBUG_SUBSTITUTE
     DEBUG_TRANSFORM
+    DEBUG_CONDITION
 end

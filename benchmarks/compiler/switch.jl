@@ -15,5 +15,4 @@ val = @sppl DEBUG begin
             A ~ Normal(z, a)
         end
     end
-    Condition( X < 50)
 end
