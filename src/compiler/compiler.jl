@@ -1,5 +1,6 @@
 using MacroTools
 using Symbolics
+using Symbolics.Rewriters
 
 include("objects.jl")
 include("transformations.jl")
@@ -312,10 +313,7 @@ export @sppl
     DEBUG_CONDITION
 end
 
-const SIMPLIFICATION_RULES = Symbolics.Chain([
+const SIMPLIFICATION_RULES = [
     @rule log(exp(~x)) => ~x
-    @acrule log(exp(~x))+~y => ~x+~y
-
     @rule sqrt((~x)^2) => abs(~x)
-    @acrule sqrt((~x)^2)+~y => abs(~x)+~y
-])
+] |> Chain |> Postwalk

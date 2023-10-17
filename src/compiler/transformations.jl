@@ -33,7 +33,7 @@ function parse_transformation(ex::Expr, err::Vector{String}, debug::Dict)
         end
         return PowerTransform(exponent[1]) ∘ inner[1], inner[2]
         # Check if exponent is constant
-    elseif (op == +) || (op == *)
+    elseif (op == +) || (op == *) || (op == /)
         left, _ = parse_transformation(ex.args[2], err, debug)
         right, right_var = parse_transformation(ex.args[3], err, debug)
 
@@ -45,11 +45,16 @@ function parse_transformation(ex::Expr, err::Vector{String}, debug::Dict)
 
         if op == +
             f = AdditiveTransform(left.a) ∘ right
-        else
+        elseif op == *
             f = MultiplicativeTransform(left.a) ∘ right
+        else
+            f = ReciprocalTransform(left.a) ∘ right
+
         end
 
         return (f, right_var)
+    elseif op == /
+
     end
 
     return

@@ -9,6 +9,11 @@ struct MultiplicativeTransform{T} <: Transformation
 end
 (t::MultiplicativeTransform)(x) = x * t.a
 
+struct ReciprocalTransform{T} <: Transformation
+    a::T
+end
+(t::ReciprocalTransform)(x) = t.a / x
+
 struct ConstantTransformation{T} <: Transformation
     a::T
 end
@@ -18,6 +23,7 @@ struct PowerTransform{T} <: Transformation
     a::T
 end
 (t::PowerTransform)(x) = x^t.a
+
 ##############
 # Transforms
 ##############

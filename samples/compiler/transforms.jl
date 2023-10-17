@@ -12,7 +12,7 @@ end
 
 val  = @sppl DEBUG  begin
     a = 1
-    b = 2
+    b = 2//4
     c = 3
     d = [[1,2], [3,4]]
     X ~ Normal(0,2)
@@ -22,12 +22,13 @@ val  = @sppl DEBUG  begin
     C ~ a+b*X
     D ~ X^2
     E ~ D * a
+    F ~ 2 / C
 end
 
 val  = @sppl DEBUG  begin
     a = 0.5
     X ~ Normal(0,2)
-    Y ~ log(exp(X))
+    Y ~ abs(log(exp(X)))
     Z ~ Bernoulli(a)
     # A ~ a+b*X
 end

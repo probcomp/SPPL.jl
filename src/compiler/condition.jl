@@ -11,6 +11,7 @@ function parse_query(ex, env, err::Vector{String}, debug::Dict)
 end
 
 function parse_query(ex, err::Vector{String}, debug::Dict)
+    # Here it is assumed that all unspecified variales are random variables???
     if ex.head == :call
         op = ex.args[1]
         if op == :! || 
