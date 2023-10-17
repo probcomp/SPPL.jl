@@ -1,81 +1,69 @@
-function parse_transformation(ex, err::Vector{String}, debug::Dict)
-    # First substitute known constants...
+const CONSTANT = :as1fdvesef
+function parse_transformation(formula::Num, err::Vector{String}, debug::Dict)
+    if length(Symbolics.get_variables(formula)) != 1
+        push!(err, "Transformation must have exactly one random variable.")
+        return 
+    end
+
+    parse_transformation(Symbolics.toexpr(formula), err, debug)
+end
+
+function parse_transformation(ex::Expr, err::Vector{String}, debug::Dict)
     if ex.head != :call
-        push!(err, "Unknown transformation head $(ex.head)")
+        push!(err, "Unknown transformation head $(ex)")
         return
     end
 
     op = ex.args[1]
     if get(debug, DEBUG_TRANSFORM, false)
-        dump(ex)
+        println("TRANSFORM: $(ex)")
     end
 
-    if op == :exp
+    if op == exp || op == log || op == abs || op == sqrt
         inner = parse_transformation(ex.args[2], err, debug)
         inner === nothing && return nothing
-        return (ComposedFunction(exp, inner[1]), inner[2])
-    elseif op == :log
+        return (ComposedFunction(op, inner[1]), inner[2])
+    elseif op == ^
         inner = parse_transformation(ex.args[2], err, debug)
         inner === nothing && return nothing
-        return (ComposedFunction(log, inner[1]), inner[2])
-    elseif op == :abs
-        inner = parse_transformation(ex.args[2], err, debug)
-        inner === nothing && return nothing
-        return (ComposedFunction(abs, inner[1]), inner[2])
-    elseif op == :sqrt
-        inner = parse_transformation(ex.args[2], err, debug)
-        inner === nothing && return nothing
-        return (ComposedFunction(sqrt, inner[1]), inner[2])
-    elseif op in [:+, :*]
-        args = ex.args[2:end]
-        terms = [parse_transformation(arg, err, debug) for arg in args]
+        exponent = parse_transformation(ex.args[3], err, debug)
+        exponent === nothing && return nothing
+        if !isa(exponent[1], ConstantTransformation)
+            push!(err, "Exponent not a constant: $(exponent[2])")
+        end
+        return PowerTransform(exponent[1]) ∘ inner[1], inner[2]
+        # Check if exponent is constant
+    elseif (op == +) || (op == *)
+        left, _ = parse_transformation(ex.args[2], err, debug)
+        right, right_var = parse_transformation(ex.args[3], err, debug)
 
-        if any(term -> term === nothing, terms)
-            push!(err, "Error parsing transformation $(ex)")
-            return nothing
+        # One branch is a constant. The other is a variable.
+        if !isa(left, ConstantTransformation)
+            push!(err, "Expected constant on left side of $(ex)")
+            return 
         end
 
-        # Only one term may have a variable
-        if count(term -> term[2] !== nothing, terms) > 1
-            push!(err, "Sum cannot have more than one variable term $(ex)")
-            return nothing
-        end
-
-        var = filter(term -> term[2] !== nothing, terms)[1]
-
-        # Ensure remaining terms are all constants
-        consts = filter(terms) do term
-            return (term[2] === nothing && term[1] isa Real)
-        end
-        consts = map(term -> term[1], consts)
-        if length(consts) != length(terms) - 1
-            push!(err, "Sum cannot have more than one variable term $(ex)")
-            return nothing
-        end
-
-        if op == :+
-            c = sum(consts)
-            f = ComposedFunction(AdditiveTransform(c), var[1])
+        if op == +
+            f = AdditiveTransform(left.a) ∘ right
         else
-            c = prod(consts)
-            f = ComposedFunction(MultiplicativeTransform(c), var[1])
+            f = MultiplicativeTransform(left.a) ∘ right
         end
-        return (f, var[2])
 
-        # display(terms)
-    else
-        push!(err, "Unknown transformation $(op)")
-        return 
+        return (f, right_var)
     end
 
-
+    return
 end
-
 
 function parse_transformation(ex::Symbol, err::Vector{String}, debug::Dict)
     return identity, ex
 end
 
 function parse_transformation(ex::Real, err::Vector{String}, debug::Dict)
-    return ex,nothing
+    return ConstantTransformation(ex),CONSTANT
+end
+
+function parse_transformation(ex, err::Vector{String}, debug::Dict)
+    push!(err, "Unknown transformation $(ex)")
+    return
 end

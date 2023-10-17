@@ -9,7 +9,7 @@ DEBUG = Dict(
 val = @sppl DEBUG begin
     a = 1
     X ~ Normal(0, 2)
-    Condition((X < 1) && (Y > 3))
+    Condition((X > 1) && (Y > 3))
 end
 
-SPPL.@condition (X < 3) && (Y >= 4)
+SPPL.@condition (X < 3) && (2*Y >= 4)

@@ -1,12 +1,23 @@
-struct AdditiveTransform{T}
+abstract type Transformation end
+struct AdditiveTransform{T} <: Transformation
     a :: T
 end
 (t::AdditiveTransform)(x) = x+t.a
 
-struct MultiplicativeTransform{T}
+struct MultiplicativeTransform{T} <: Transformation
     a ::T
 end
 (t::MultiplicativeTransform)(x) = x * t.a
+
+struct ConstantTransformation{T} <: Transformation
+    a::T
+end
+(t::ConstantTransformation)(x) = t.a
+
+struct PowerTransform{T} <: Transformation
+    a::T
+end
+(t::PowerTransform)(x) = x^t.a
 ##############
 # Transforms
 ##############

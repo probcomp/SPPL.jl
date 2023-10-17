@@ -105,9 +105,14 @@ function parse_sample(ex, env, err::Vector{String}, debug::Dict)
     end
 
     if haskey(env, lvalue)
+        push!(err, "Cannot reassign constant $(lvalue)")
+    end
+    if hasvariable(env, lvalue)
         push!(err, "Cannot reassign variable $(lvalue)")
     end
-    env.variables[lvalue] = dist
+    var_name = (@variables $(lvalue))[1]
+    env.variables[lvalue] = (var_name, dist)
+    return
 end
 
 function parse_lvalue(ex, env, err, debug=false)
@@ -138,7 +143,11 @@ function parse_distribution(ex, env, err::Vector{String}, debug::Dict)
         dist = eval(dist_type)
         return dist(dist_args...)
     else
-        sub_ex = substitute_constants(ex, env, err, debug)
+        sub_ex = substitute_locals(ex, env, err, debug)
+
+        # Do some exception handling here
+        sub_ex = eval(sub_ex)
+        sub_ex = simplify(sub_ex, rewriter = SIMPLIFICATION_RULES)
 
         try
             transform = parse_transformation(sub_ex, err, debug)
@@ -146,7 +155,8 @@ function parse_distribution(ex, env, err::Vector{String}, debug::Dict)
                 push!(err, "Could not interpret transform $(ex)")
                 return nothing
             end
-            if !hasvariable(env, transform[2])
+
+            if !hasvariable(env, transform[2]) # TODO: Consider moving this before parsing?
                 push!(err, "Variable $(transform[2]) not in scope")
                 return nothing
             end
@@ -159,6 +169,7 @@ function parse_distribution(ex, env, err::Vector{String}, debug::Dict)
 end
 
 function parse_distribution(ex::Real, env, err::Vector{String}, debug::Dict)
+    throw("TODO: Atomic not defined for distributions.")
     # This is an atomic? Transform into a constant.
     return ex
 end
@@ -212,12 +223,33 @@ function parse_closure(ex, val, env, err::Vector{String}, debug=false)
 end
 
 
+function substitute_locals(ex, env, err::Vector{String}, debug::Dict)
+    sub_ex = MacroTools.postwalk(sub_(env), ex)
+    if get(debug, DEBUG_SUBSTITUTE, false)
+        println("Constant: ", ex, " -> ", sub_ex)
+    end
+    sub_ex
+end
+
 function substitute_constants(ex, env, err::Vector{String}, debug)
     sub_ex = MacroTools.postwalk(sub_func(env), ex)
     if get(debug, DEBUG_SUBSTITUTE, false)
         println("Constant: ", ex, " -> ", sub_ex)
     end
     return sub_ex
+end
+
+function sub_(env::Environment)
+    function substitute(ex)
+        if haskey(env, ex) # Defined as a constant
+            return env[ex]
+        elseif hasvariable(env, ex) # Defined as a variable
+            return getvariable(env, ex)[1]
+        else
+            return ex
+        end
+
+    end
 end
 
 function sub_func(env::Environment)
@@ -279,3 +311,11 @@ export @sppl
     DEBUG_TRANSFORM
     DEBUG_CONDITION
 end
+
+const SIMPLIFICATION_RULES = Symbolics.Chain([
+    @rule log(exp(~x)) => ~x
+    @acrule log(exp(~x))+~y => ~x+~y
+
+    @rule sqrt((~x)^2) => abs(~x)
+    @acrule sqrt((~x)^2)+~y => abs(~x)+~y
+])
